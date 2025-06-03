@@ -1,0 +1,288 @@
+{
+    "dashboard": {
+        "id": 5,
+        "title": "K6 Load Testing Results",
+        "tags": [
+            "loadbalancer",
+            "k6",
+            "testing",
+            "performance"
+        ],
+        "timezone": "browser",
+        "panels": [
+            {
+                "id": 1,
+                "title": "Virtual Users",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"value\") FROM \"vus\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 0
+                }
+            },
+            {
+                "id": 2,
+                "title": "Request Rate",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"http_reqs\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 0
+                }
+            },
+            {
+                "id": 3,
+                "title": "Response Time Percentiles",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"p95\") FROM \"http_req_duration\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true,
+                        "alias": "P95"
+                    },
+                    {
+                        "query": "SELECT mean(\"p90\") FROM \"http_req_duration\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "B",
+                        "rawQuery": true,
+                        "alias": "P90"
+                    },
+                    {
+                        "query": "SELECT mean(\"p50\") FROM \"http_req_duration\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "C",
+                        "rawQuery": true,
+                        "alias": "P50"
+                    }
+                ],
+                "yAxes": [
+                    {
+                        "unit": "ms"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 8
+                }
+            },
+            {
+                "id": 4,
+                "title": "Error Rate",
+                "type": "stat",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"http_req_failed\" WHERE $timeFilter",
+                        "refId": "A",
+                        "rawQuery": true
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": 0
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 1
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 5
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 12,
+                    "y": 8
+                }
+            },
+            {
+                "id": 5,
+                "title": "Throughput (RPS)",
+                "type": "stat",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"http_reqs\" WHERE $timeFilter",
+                        "refId": "A",
+                        "rawQuery": true
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "reqps",
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": 0
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 50
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 100
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 18,
+                    "y": 8
+                }
+            },
+            {
+                "id": 6,
+                "title": "Data Sent/Received",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"data_sent\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true,
+                        "alias": "Data Sent"
+                    },
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"data_received\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "B",
+                        "rawQuery": true,
+                        "alias": "Data Received"
+                    }
+                ],
+                "yAxes": [
+                    {
+                        "unit": "Bps"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 12
+                }
+            },
+            {
+                "id": 7,
+                "title": "Checks Passed/Failed",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"checks\" WHERE \"check_status\"='1' AND $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true,
+                        "alias": "Passed"
+                    },
+                    {
+                        "query": "SELECT mean(\"rate\") FROM \"checks\" WHERE \"check_status\"='0' AND $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "B",
+                        "rawQuery": true,
+                        "alias": "Failed"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 16
+                }
+            },
+            {
+                "id": 8,
+                "title": "HTTP Status Codes",
+                "type": "piechart",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT sum(\"count\") FROM \"http_reqs\" WHERE $timeFilter GROUP BY \"status\"",
+                        "refId": "A",
+                        "rawQuery": true
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 12,
+                    "y": 20
+                }
+            },
+            {
+                "id": 9,
+                "title": "Iteration Duration",
+                "type": "graph",
+                "datasource": "InfluxDB-K6",
+                "targets": [
+                    {
+                        "query": "SELECT mean(\"avg\") FROM \"iteration_duration\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "A",
+                        "rawQuery": true,
+                        "alias": "Average"
+                    },
+                    {
+                        "query": "SELECT mean(\"p95\") FROM \"iteration_duration\" WHERE $timeFilter GROUP BY time($__interval) fill(null)",
+                        "refId": "B",
+                        "rawQuery": true,
+                        "alias": "P95"
+                    }
+                ],
+                "yAxes": [
+                    {
+                        "unit": "ms"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 20
+                }
+            }
+        ],
+        "time": {
+            "from": "now-30m",
+            "to": "now"
+        },
+        "refresh": "5s"
+    }
+}

@@ -1,0 +1,58 @@
+groups:
+  - name: loadbalancer_alerts
+    rules:
+      - alert: LoadBalancerDown
+        expr: up{job="loadbalancer"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Load balancer is down"
+          description: "Load balancer has been down for more than 30 seconds"
+
+      - alert: BackendDown
+        expr: up{job=~"backend.*"} == 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend {{ $labels.job }} is down"
+          description: "Backend {{ $labels.job }} has been down for more than 30 seconds"
+
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds_p95 > 1.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }}"
+
+  - name: k6_alerts
+    rules:
+      - alert: K6TestFailed
+        expr: k6_http_req_failed > 0.1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "K6 test failure rate high"
+          description: "K6 test failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: K6HighLatency
+        expr: k6_http_req_duration_p95 > 2000
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "K6 detected high latency"
+          description: "95th percentile latency is {{ $value }}ms" 
