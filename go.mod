@@ -1,3 +1,4 @@
+// v0.1.0-beta
 module github.com/amr/go-loadbalancer
 
 go 1.21
