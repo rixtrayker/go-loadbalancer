@@ -1,21 +1,27 @@
 [server]
 port = 8080
-host = "0.0.0.0"
-algorithm = "round-robin"
+host = "localhost"
+algorithm = "weighted"
 readTimeout = 30
 writeTimeout = 30
 idleTimeout = 120
-shutdownTimeout = 20
+shutdownTimeout = 30
 
 [[backends]]
 name = "backend1"
 url = "http://localhost:8081"
-weight = 1
+weight = 3
 maxConns = 100
 
 [[backends]]
 name = "backend2"
 url = "http://localhost:8082"
+weight = 2
+maxConns = 100
+
+[[backends]]
+name = "backend3"
+url = "http://localhost:8083"
 weight = 1
 maxConns = 100
 
@@ -25,8 +31,8 @@ requestsPer = 100
 period = 60
 
 [policies.security]
-allowedIPs = ["127.0.0.1", "::1"]
+allowedIPs = ["127.0.0.1/32", "192.168.1.0/24"]
 
 [policies.transform]
-addHeaders = { "X-LoadBalancer" = "true" }
-removeHeaders = ["X-Forwarded-For"] 
+addHeaders = { "X-LoadBalancer" = "go-loadbalancer", "X-Forwarded-Proto" = "https" }
+removeHeaders = ["X-Forwarded-For", "X-Real-IP"] 
