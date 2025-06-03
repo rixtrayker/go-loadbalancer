@@ -1,0 +1,32 @@
+[server]
+port = 8080
+host = "0.0.0.0"
+algorithm = "least-connections"
+readTimeout = 30
+writeTimeout = 30
+idleTimeout = 120
+shutdownTimeout = 20
+
+[[backends]]
+name = "backend1"
+url = "http://backend1:8081"
+weight = 2
+maxConns = 500
+
+[[backends]]
+name = "backend2"
+url = "http://backend2:8082"
+weight = 2
+maxConns = 500
+
+[policies.rateLimit]
+enabled = true
+requestsPer = 100
+period = 60
+
+[policies.security]
+allowedIPs = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
+
+[policies.transform]
+addHeaders = { "X-LoadBalancer" = "true", "X-Environment" = "prod" }
+removeHeaders = ["X-Forwarded-For", "X-Real-IP"] 
