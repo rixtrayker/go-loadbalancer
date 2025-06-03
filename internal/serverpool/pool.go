@@ -4,11 +4,13 @@ import (
 	"sync"
 
 	"github.com/amr/go-loadbalancer/internal/backend"
+	"github.com/amr/go-loadbalancer/internal/serverpool/algorithms"
 )
 
 // Pool represents a pool of backend servers
 type Pool struct {
-	backends []*backend.Backend
+	backends  []*backend.Backend
+	algorithm algorithms.Algorithm
 	current  uint64
 	mu       sync.RWMutex
 }
@@ -18,6 +20,11 @@ func NewPool() *Pool {
 	return &Pool{
 		backends: make([]*backend.Backend, 0),
 	}
+}
+
+// NewBackend creates a new backend instance
+func NewBackend(url string, weight int) (*backend.Backend, error) {
+	return backend.NewBackend("", url, weight, 100)
 }
 
 // AddBackend adds a backend to the pool
@@ -38,26 +45,6 @@ func (p *Pool) RemoveBackend(url string) {
 			return
 		}
 	}
-}
-
-// GetNextBackend returns the next available backend
-func (p *Pool) GetNextBackend() *backend.Backend {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if len(p.backends) == 0 {
-		return nil
-	}
-
-	// Try to find an available backend
-	for i := 0; i < len(p.backends); i++ {
-		backend := p.backends[i]
-		if backend.IsAvailable() {
-			return backend
-		}
-	}
-
-	return nil
 }
 
 // GetBackends returns all backends in the pool
@@ -89,4 +76,17 @@ func (p *Pool) Size() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return len(p.backends)
+}
+
+// SetAlgorithm sets the load balancing algorithm
+func (p *Pool) SetAlgorithm(algorithm algorithms.Algorithm) {
+	p.algorithm = algorithm
+}
+
+// GetNextBackend returns the next backend using the configured algorithm
+func (p *Pool) GetNextBackend() *backend.Backend {
+	if p.algorithm == nil {
+		return nil
+	}
+	return p.algorithm.GetNextBackend(p.GetAvailableBackends())
 } 

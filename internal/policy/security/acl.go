@@ -29,6 +29,19 @@ func NewACL() *ACL {
 	}
 }
 
+// SetAllowedIPs sets the allowed IP ranges
+func (a *ACL) SetAllowedIPs(ips []string) error {
+	a.allowedIPs = make([]*net.IPNet, 0, len(ips))
+	for _, ipStr := range ips {
+		_, ipNet, err := net.ParseCIDR(ipStr)
+		if err != nil {
+			return err
+		}
+		a.allowedIPs = append(a.allowedIPs, ipNet)
+	}
+	return nil
+}
+
 // Apply implements the Policy interface
 func (a *ACL) Apply(req *http.Request, _ *http.Response) error {
 	// Check IP address

@@ -20,6 +20,7 @@ import (
 	"github.com/amr/go-loadbalancer/pkg/metrics"
 	"github.com/amr/go-loadbalancer/pkg/tracer"
 	"github.com/gorilla/mux"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -29,26 +30,38 @@ func main() {
 
 	// Initialize logger
 	logger := logging.DefaultLogger()
+	defer logger.Sync()
 
 	// Load configuration
 	configLoader := config.NewLoader(*configFile)
 	cfg, err := configLoader.Load()
 	if err != nil {
-		logger.Fatalf("Failed to load configuration: %v", err)
+		logger.Fatal("Failed to load configuration", zap.Error(err))
 	}
 
 	// Initialize metrics
 	metricsCollector := metrics.NewMetrics()
 
 	// Initialize tracer
-	tracerInstance := tracer.NewNoopTracer()
+	tracerInstance, err := tracer.NewJaegerTracer("go-loadbalancer")
+	if err != nil {
+		logger.Warn("Failed to initialize Jaeger tracer, falling back to no-op tracer", zap.Error(err))
+		tracerInstance = tracer.NewNoopTracer()
+	}
 
 	// Initialize server pool
 	pool := serverpool.NewPool()
 
 	// Add backends from config
 	for _, backend := range cfg.Backends {
-		pool.AddBackend(backend.URL, backend.Weight)
+		backend, err := serverpool.NewBackend(backend.URL, backend.Weight)
+		if err != nil {
+			logger.Error("Failed to create backend", 
+				zap.String("url", backend.URL),
+				zap.Error(err))
+			continue
+		}
+		pool.AddBackend(backend)
 	}
 
 	// Initialize load balancing algorithm based on config
@@ -59,6 +72,7 @@ func main() {
 	default:
 		algorithm = algorithms.NewRoundRobin()
 	}
+	pool.SetAlgorithm(algorithm)
 
 	// Initialize health checker
 	healthChecker := healthcheck.NewHealthChecker(30*time.Second, 5*time.Second, "http")
@@ -83,17 +97,21 @@ func main() {
 	// Add security policy
 	acl := security.NewACL()
 	if len(cfg.Policies.Security.AllowedIPs) > 0 {
-		acl.AllowedIPs = cfg.Policies.Security.AllowedIPs
+		acl.SetAllowedIPs(cfg.Policies.Security.AllowedIPs)
 	}
 	policyChain.AddPolicy(acl)
 
 	// Add transformation policy
 	transformer := transform.NewTransformer()
 	if len(cfg.Policies.Transform.AddHeaders) > 0 {
-		transformer.AddHeaders = cfg.Policies.Transform.AddHeaders
+		for k, v := range cfg.Policies.Transform.AddHeaders {
+			transformer.AddHeaderTransformation(k, v)
+		}
 	}
 	if len(cfg.Policies.Transform.RemoveHeaders) > 0 {
-		transformer.RemoveHeaders = cfg.Policies.Transform.RemoveHeaders
+		for _, h := range cfg.Policies.Transform.RemoveHeaders {
+			transformer.RemoveHeaderTransformation(h)
+		}
 	}
 	policyChain.AddPolicy(transformer)
 
@@ -122,8 +140,10 @@ func main() {
 	}
 
 	// Start server
-	logger.Infof("Starting server on %s:%d", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("Starting server",
+		zap.String("host", cfg.Server.Host),
+		zap.Int("port", cfg.Server.Port))
 	if err := server.ListenAndServe(); err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
+		logger.Fatal("Failed to start server", zap.Error(err))
 	}
 } 
