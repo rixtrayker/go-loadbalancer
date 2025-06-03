@@ -9,6 +9,7 @@ include make/lint.mk
 include make/docker.mk
 include make/clean.mk
 include make/help.mk
+include make/k6.mk
 
 # Default target
 .PHONY: all
@@ -66,4 +67,4 @@ help:
 	@echo "  clean-all       - Clean all generated files"
 	@echo ""
 	@echo "Help:"
-	@echo "  help            - Show this help message" 
+	@echo "  help            - Show this help message" z

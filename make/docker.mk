@@ -1,6 +1,8 @@
 # Docker targets for Go Load Balancer
 
-.PHONY: docker-build
+.PHONY: docker-build docker-run docker-push help-docker
+
+# Build Docker image
 docker-build:
 	@echo "Building Docker image..."
 	$(DOCKER) build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
@@ -12,7 +14,7 @@ docker-build-multi:
 	$(DOCKER) buildx create --use
 	$(DOCKER) buildx build --platform linux/amd64,linux/arm64 -t $(DOCKER_IMAGE):$(DOCKER_TAG) --push .
 
-.PHONY: docker-run
+# Run Docker container
 docker-run:
 	@echo "Running Docker container..."
 	$(DOCKER) run -p 8080:8080 $(DOCKER_IMAGE):$(DOCKER_TAG)
@@ -22,7 +24,7 @@ docker-run-dev:
 	@echo "Running Docker container in development mode..."
 	$(DOCKER) run -p 8080:8080 -v $(PWD):/app $(DOCKER_IMAGE):$(DOCKER_TAG)
 
-.PHONY: docker-push
+# Push Docker image
 docker-push:
 	@echo "Pushing Docker image..."
 	$(DOCKER) push $(DOCKER_IMAGE):$(DOCKER_TAG)
@@ -52,4 +54,11 @@ docker-test:
 .PHONY: docker-bench
 docker-bench:
 	@echo "Running benchmarks in Docker container..."
-	$(DOCKER) run --rm $(DOCKER_IMAGE):$(DOCKER_TAG) make bench 
+	$(DOCKER) run --rm $(DOCKER_IMAGE):$(DOCKER_TAG) make bench
+
+# Docker help
+help-docker:
+	@echo "Docker targets:"
+	@echo "  docker-build    - Build Docker image"
+	@echo "  docker-run      - Run Docker container"
+	@echo "  docker-push     - Push Docker image" 

@@ -1,33 +1,26 @@
 # Build targets for Go Load Balancer
 
-.PHONY: build
+.PHONY: build build-linux build-darwin build-windows help-build
+
+# Build for current platform
 build:
-	@echo "Building $(BINARY_NAME) for $(GOOS)/$(GOARCH)..."
+	@echo "Building for current platform..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOCMD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./main.go
 
-.PHONY: build-all
-build-all: $(PLATFORMS)
-
-.PHONY: $(PLATFORMS)
-$(PLATFORMS):
-	@echo "Building for $@..."
-	@mkdir -p $(BUILD_DIR)
-	GOOS=$@ GOARCH=amd64 $(GOCMD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-$@ ./main.go
-
-.PHONY: build-linux
+# Build for Linux
 build-linux:
 	@echo "Building for Linux..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=amd64 $(GOCMD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux ./main.go
 
-.PHONY: build-darwin
+# Build for Darwin
 build-darwin:
 	@echo "Building for Darwin..."
 	@mkdir -p $(BUILD_DIR)
 	GOOS=darwin GOARCH=amd64 $(GOCMD) $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin ./main.go
 
-.PHONY: build-windows
+# Build for Windows
 build-windows:
 	@echo "Building for Windows..."
 	@mkdir -p $(BUILD_DIR)
@@ -48,4 +41,14 @@ build-release: clean
 			GOOS=$$os GOARCH=$$arch $(GOCMD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-$$os-$$arch ./main.go; \
 		done \
 	done
-	cd $(DIST_DIR) && sha256sum * > checksums.txt 
+	cd $(DIST_DIR) && sha256sum * > checksums.txt
+
+# Build help
+help-build:
+	@echo "Build targets:"
+	@echo "  build           - Build for current platform"
+	@echo "  build-linux     - Build for Linux"
+	@echo "  build-darwin    - Build for Darwin"
+	@echo "  build-windows   - Build for Windows"
+	@echo "  build-arm64     - Build for ARM64"
+	@echo "  build-release   - Build release binaries" 

@@ -1,27 +1,36 @@
 # Test targets for Go Load Balancer
 
-.PHONY: test
+.PHONY: test test-coverage test-race help-test
+
+# Run tests
 test:
 	@echo "Running tests..."
 	$(GOTEST) $(TEST_FLAGS) ./...
 
-.PHONY: test-verbose
-test-verbose:
-	@echo "Running tests with verbose output..."
-	$(GOTEST) -v $(TEST_FLAGS) ./...
-
-.PHONY: test-race
-test-race:
-	@echo "Running tests with race detection..."
-	$(GOTEST) -race $(TEST_FLAGS) ./...
-
-.PHONY: test-coverage
+# Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
 	@mkdir -p $(COVERAGE_DIR)
 	$(GOTEST) $(TEST_FLAGS) -coverprofile=$(COVERAGE_DIR)/coverage.out ./...
 	$(GOCOVER) -html=$(COVERAGE_DIR)/coverage.out -o $(COVERAGE_DIR)/coverage.html
 	@echo "Coverage report generated at $(COVERAGE_DIR)/coverage.html"
+
+# Run tests with race detection
+test-race:
+	@echo "Running tests with race detection..."
+	$(GOTEST) -race $(TEST_FLAGS) ./...
+
+# Test help
+help-test:
+	@echo "Testing targets:"
+	@echo "  test            - Run tests"
+	@echo "  test-coverage   - Run tests with coverage"
+	@echo "  test-race       - Run tests with race detection"
+
+.PHONY: test-verbose
+test-verbose:
+	@echo "Running tests with verbose output..."
+	$(GOTEST) -v $(TEST_FLAGS) ./...
 
 .PHONY: test-short
 test-short:
