@@ -12,6 +12,7 @@ K6_SCENARIO ?= simple
 .PHONY: k6-simple k6-stress k6-spike k6-endurance k6-monitor k6-custom
 .PHONY: k6-validate k6-setup k6-cleanup k6-stop k6-logs k6-results
 .PHONY: k6-smoke k6-load k6-breakpoint k6-volume k6-report k6-compare
+.PHONY: k6-monitor-prometheus k6-monitor-full k6-prometheus-setup
 
 # Validation and setup
 k6-validate:
@@ -24,6 +25,10 @@ k6-validate:
 		echo "Error: k6 scripts directory not found"; \
 		exit 1; \
 	fi
+	@if [ ! -d "./docker" ]; then \
+		echo "Warning: docker directory not found, creating it..."; \
+		mkdir -p docker/prometheus docker/grafana; \
+	fi
 	@echo "K6 setup validation passed"
 
 k6-setup: k6-validate
@@ -31,6 +36,34 @@ k6-setup: k6-validate
 	@mkdir -p $(K6_OUT_DIR)
 	@docker-compose pull k6 influxdb grafana
 	@echo "K6 environment ready"
+
+k6-prometheus-setup: k6-validate
+	@echo "Setting up k6 with Prometheus monitoring..."
+	@mkdir -p $(K6_OUT_DIR)
+	@docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml pull
+	@echo "K6 + Prometheus environment ready"
+
+# Tests with Prometheus output
+k6-simple-prometheus: k6-prometheus-setup
+	@echo "Running simple load test with Prometheus output..."
+	@echo "Target: $(K6_TARGET) | Duration: $(K6_DURATION) | VUs: $(K6_VUS)"
+	docker-compose run --rm k6 run \
+		-e TARGET_URL=$(K6_TARGET) \
+		-e TEST_DURATION=$(K6_DURATION) \
+		-e VUS=$(K6_VUS) \
+		--out prometheus=http://prometheus:9090/api/v1/write \
+		--out json=./results/simple-prometheus-$(shell date +%Y%m%d-%H%M%S).json \
+		/scripts/simple.js
+
+k6-stress-prometheus: k6-prometheus-setup
+	@echo "Running stress test with Prometheus output..."
+	docker-compose run --rm k6 run \
+		-e TARGET_URL=$(K6_TARGET) \
+		-e TEST_DURATION=$(K6_DURATION) \
+		-e VUS=$(K6_VUS) \
+		--out prometheus=http://prometheus:9090/api/v1/write \
+		--out json=./results/stress-prometheus-$(shell date +%Y%m%d-%H%M%S).json \
+		/scripts/stress.js
 
 # Basic load tests
 k6-simple: k6-setup
@@ -129,13 +162,36 @@ k6-custom: k6-setup
 
 # Monitoring and observability
 k6-monitor: k6-setup
-	@echo "Starting monitoring stack..."
+	@echo "Starting InfluxDB + Grafana monitoring stack..."
 	docker-compose up -d influxdb grafana
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "✅ Grafana is available at http://localhost:3000"
 	@echo "✅ InfluxDB is available at http://localhost:8086"
 	@echo "   Username: admin | Password: admin (Grafana)"
+
+k6-monitor-prometheus: k6-prometheus-setup
+	@echo "Starting Prometheus + Grafana monitoring stack..."
+	docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d prometheus node_exporter grafana-enhanced alertmanager
+	@echo "Waiting for services to be ready..."
+	@sleep 15
+	@echo "✅ Prometheus is available at http://localhost:9090"
+	@echo "✅ Enhanced Grafana is available at http://localhost:3001"
+	@echo "✅ AlertManager is available at http://localhost:9093"
+	@echo "✅ Node Exporter metrics at http://localhost:9100"
+	@echo "   Username: admin | Password: admin (Grafana)"
+
+k6-monitor-full: k6-prometheus-setup
+	@echo "Starting full monitoring stack (InfluxDB + Prometheus + Grafana)..."
+	docker-compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d
+	@echo "Waiting for all services to be ready..."
+	@sleep 20
+	@echo "✅ Load Balancer: http://localhost:8080"
+	@echo "✅ Grafana (InfluxDB): http://localhost:3000"
+	@echo "✅ Grafana (Prometheus): http://localhost:3001"
+	@echo "✅ Prometheus: http://localhost:9090"
+	@echo "✅ InfluxDB: http://localhost:8086"
+	@echo "✅ AlertManager: http://localhost:9093"
 
 k6-logs:
 	@echo "Showing k6 container logs..."
@@ -144,10 +200,12 @@ k6-logs:
 k6-stop:
 	@echo "Stopping k6 and monitoring services..."
 	docker-compose stop k6 influxdb grafana
+	docker-compose -f docker-compose.monitoring.yml stop 2>/dev/null || true
 
 k6-cleanup:
 	@echo "Cleaning up k6 containers and volumes..."
 	docker-compose down -v
+	docker-compose -f docker-compose.monitoring.yml down -v 2>/dev/null || true
 	docker-compose rm -f
 
 # Results and reporting
@@ -218,50 +276,65 @@ help-k6:
 	@echo "========================"
 	@echo ""
 	@echo "Setup & Validation:"
-	@echo "  k6-setup        - Set up k6 testing environment"
-	@echo "  k6-validate     - Validate k6 configuration"
-	@echo "  k6-dev          - Start development environment"
+	@echo "  k6-setup            - Set up k6 testing environment (InfluxDB)"
+	@echo "  k6-prometheus-setup - Set up k6 with Prometheus monitoring"
+	@echo "  k6-validate         - Validate k6 configuration"
+	@echo "  k6-dev              - Start development environment"
 	@echo ""
-	@echo "Basic Tests:"
-	@echo "  k6-smoke        - Smoke test (minimal load)"
-	@echo "  k6-simple       - Simple load test"
-	@echo "  k6-load         - Standard load test"
-	@echo "  k6-stress       - Stress test (high load)"
-	@echo "  k6-spike        - Spike test (sudden load increase)"
-	@echo "  k6-endurance    - Endurance test (extended duration)"
+	@echo "Basic Tests (InfluxDB output):"
+	@echo "  k6-smoke            - Smoke test (minimal load)"
+	@echo "  k6-simple           - Simple load test"
+	@echo "  k6-load             - Standard load test"
+	@echo "  k6-stress           - Stress test (high load)"
+	@echo "  k6-spike            - Spike test (sudden load increase)"
+	@echo "  k6-endurance        - Endurance test (extended duration)"
+	@echo ""
+	@echo "Prometheus Tests:"
+	@echo "  k6-simple-prometheus  - Simple test with Prometheus output"
+	@echo "  k6-stress-prometheus  - Stress test with Prometheus output"
 	@echo ""
 	@echo "Advanced Tests:"
-	@echo "  k6-breakpoint   - Find breaking point"
-	@echo "  k6-volume       - High volume test"
-	@echo "  k6-custom       - Custom test (TEST_TYPE=<type>)"
+	@echo "  k6-breakpoint       - Find breaking point"
+	@echo "  k6-volume           - High volume test"
+	@echo "  k6-custom           - Custom test (TEST_TYPE=<type>)"
 	@echo ""
 	@echo "Test Suites:"
-	@echo "  k6-quick        - Quick smoke test"
-	@echo "  k6-full         - Full test suite"
-	@echo "  k6-ci           - CI test suite"
+	@echo "  k6-quick            - Quick smoke test"
+	@echo "  k6-full             - Full test suite"
+	@echo "  k6-ci               - CI test suite"
 	@echo ""
 	@echo "Monitoring & Observability:"
-	@echo "  k6-monitor      - Start monitoring stack"
-	@echo "  k6-logs         - Show k6 logs"
-	@echo "  k6-stop         - Stop services"
-	@echo "  k6-cleanup      - Clean up containers and volumes"
+	@echo "  k6-monitor          - Start InfluxDB + Grafana (port 3000)"
+	@echo "  k6-monitor-prometheus - Start Prometheus + Grafana (port 3001)"
+	@echo "  k6-monitor-full     - Start complete monitoring stack"
+	@echo "  k6-logs             - Show k6 logs"
+	@echo "  k6-stop             - Stop all services"
+	@echo "  k6-cleanup          - Clean up containers and volumes"
 	@echo ""
 	@echo "Results & Reporting:"
-	@echo "  k6-results      - List test results"
-	@echo "  k6-report       - Generate report (RESULT_FILE=<path>)"
-	@echo "  k6-compare      - Compare results (FILE1=<path> FILE2=<path>)"
+	@echo "  k6-results          - List test results"
+	@echo "  k6-report           - Generate report (RESULT_FILE=<path>)"
+	@echo "  k6-compare          - Compare results (FILE1=<path> FILE2=<path>)"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  k6-list-scripts - List available test scripts"
+	@echo "  k6-list-scripts     - List available test scripts"
 	@echo ""
 	@echo "Configuration Variables:"
-	@echo "  K6_TARGET       - Target URL (default: http://loadbalancer:8080)"
-	@echo "  K6_DURATION     - Test duration (default: 1m)"
-	@echo "  K6_VUS          - Virtual Users (default: 20)"
-	@echo "  K6_OUT_DIR      - Output directory (default: ./results)"
+	@echo "  K6_TARGET           - Target URL (default: http://loadbalancer:8080)"
+	@echo "  K6_DURATION         - Test duration (default: 1m)"
+	@echo "  K6_VUS              - Virtual Users (default: 20)"
+	@echo "  K6_OUT_DIR          - Output directory (default: ./results)"
+	@echo ""
+	@echo "Monitoring Ports:"
+	@echo "  :3000               - Grafana (InfluxDB datasource)"
+	@echo "  :3001               - Grafana (Prometheus datasource)"
+	@echo "  :8086               - InfluxDB"
+	@echo "  :9090               - Prometheus"
+	@echo "  :9093               - AlertManager"
+	@echo "  :9100               - Node Exporter"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make k6-stress K6_TARGET=http://localhost:8080 K6_DURATION=5m K6_VUS=100"
+	@echo "  make k6-monitor-full                    # Complete monitoring stack"
+	@echo "  make k6-stress-prometheus K6_VUS=100   # Stress test with Prometheus"
 	@echo "  make k6-custom TEST_TYPE=spike K6_VUS=50"
-	@echo "  make k6-report RESULT_FILE=./results/stress-20231201-120000.json"
-	@echo "  make k6-compare FILE1=./results/before.json FILE2=./results/after.json" 
+	@echo "  make k6-report RESULT_FILE=./results/stress-20231201-120000.json" 
