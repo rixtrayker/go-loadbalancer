@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Check for skip test tag
+        id: skip-test
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == *"[skip test]"* ]]; then
+            echo "skip_test=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_test=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests
+        if: steps.skip-test.outputs.skip_test != 'true'
+        run: |
+          go test -v ./...
+
+      - name: Build
+        run: |
+          go build -v ./...
+
+      - name: Build Docker image
+        run: |
+          docker build -t go-loadbalancer .
+
+      - name: Run integration tests
+        if: steps.skip-test.outputs.skip_test != 'true'
+        run: |
+          make test-integration
+
+      - name: Run load tests
+        if: steps.skip-test.outputs.skip_test != 'true'
+        run: |
+          make test-load 
