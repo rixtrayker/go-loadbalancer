@@ -1,10 +1,14 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
 
+const TARGET_URL = __ENV.TARGET_URL || "http://localhost:8080";
+const TEST_DURATION = __ENV.TEST_DURATION || "1m";
+const VUS = parseInt(__ENV.VUS || "20");
+
 export const options = {
   stages: [
-    { duration: "30s", target: 20 }, // Ramp up to 20 users
-    { duration: "1m", target: 20 }, // Stay at 20 users
+    { duration: "30s", target: VUS }, // Ramp up to target VUs
+    { duration: TEST_DURATION, target: VUS }, // Stay at target VUs
     { duration: "30s", target: 0 }, // Ramp down to 0 users
   ],
   thresholds: {
@@ -14,7 +18,7 @@ export const options = {
 };
 
 export default function () {
-  const response = http.get("http://localhost:8080/");
+  const response = http.get(TARGET_URL);
 
   check(response, {
     "is status 200": (r) => r.status === 200,
