@@ -37,7 +37,7 @@ WORKDIR /app
 
 # Copy only necessary files from builder
 COPY --from=builder --chown=appuser:appgroup /build/loadbalancer .
-COPY --from=builder --chown=appuser:appgroup /build/config/config.toml ./config/
+COPY --from=builder --chown=appuser:appgroup /build/config/config.yml ./config/
 
 # Create a non-root user and switch to it
 USER appuser

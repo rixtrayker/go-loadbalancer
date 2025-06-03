@@ -1,0 +1,39 @@
+server:
+  port: 8080
+  host: localhost
+  algorithm: weighted
+  readTimeout: 30
+  writeTimeout: 30
+  idleTimeout: 120
+  shutdownTimeout: 30
+
+backends:
+  - name: backend1
+    url: http://localhost:8081
+    weight: 3
+    maxConns: 100
+  - name: backend2
+    url: http://localhost:8082
+    weight: 2
+    maxConns: 100
+  - name: backend3
+    url: http://localhost:8083
+    weight: 1
+    maxConns: 100
+
+policies:
+  rateLimit:
+    enabled: true
+    requestsPer: 100
+    period: 60
+  security:
+    allowedIPs:
+      - 127.0.0.1/32
+      - 192.168.1.0/24
+  transform:
+    addHeaders:
+      X-LoadBalancer: go-loadbalancer
+      X-Forwarded-Proto: https
+    removeHeaders:
+      - X-Forwarded-For
+      - X-Real-IP 

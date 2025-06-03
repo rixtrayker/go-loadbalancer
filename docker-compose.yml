@@ -16,7 +16,7 @@ services:
     volumes:
       - ./config:/app/config
     environment:
-      - CONFIG_FILE=/app/config/config.${ENV:-dev}.toml
+      - CONFIG_FILE=/app/config/config.${ENV:-dev}.yml
     depends_on:
       - backend1
       - backend2
