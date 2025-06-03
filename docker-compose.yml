@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  loadbalancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_TIME=${BUILD_TIME:-unknown}
+        - COMMIT=${COMMIT:-unknown}
+    image: go-loadbalancer:${VERSION:-dev}
+    container_name: loadbalancer
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/app/config
+    environment:
+      - CONFIG_FILE=/app/config/config.${ENV:-dev}.toml
+    depends_on:
+      - backend1
+      - backend2
+    networks:
+      - lb-network
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+
+  backend1:
+    image: nginx:alpine
+    container_name: backend1
+    ports:
+      - "8081:80"
+    volumes:
+      - ./test/backend1:/usr/share/nginx/html
+    networks:
+      - lb-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend2:
+    image: nginx:alpine
+    container_name: backend2
+    ports:
+      - "8082:80"
+    volumes:
+      - ./test/backend2:/usr/share/nginx/html
+    networks:
+      - lb-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  k6:
+    image: grafana/k6:latest
+    container_name: k6
+    volumes:
+      - ./k6:/scripts
+    networks:
+      - lb-network
+    command: run /scripts/simple.js
+    environment:
+      - K6_OUT=influxdb=http://influxdb:8086/k6
+
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    ports:
+      - "8086:8086"
+    networks:
+      - lb-network
+    environment:
+      - INFLUXDB_DB=k6
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - lb-network
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+volumes:
+  grafana-storage:
+
+networks:
+  lb-network:
+    driver: bridge 
