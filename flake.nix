@@ -35,8 +35,7 @@
           pname = "go-loadbalancer";
           version = "0.1.0";
           src = ./.;
-
-          vendorHash = "sha256-0000000000000000000000000000000000000000000000000000";  # This will be replaced by nix
+          vendorHash = self.inputs.flake-utils.lib.flakeVendorHash ./.;
 
           meta = with pkgs.lib; {
             description = "A Go-based load balancer";
