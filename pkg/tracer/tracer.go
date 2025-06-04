@@ -1,150 +1,57 @@
 package tracer
 
 import (
-	"context"
-	"time"
+	"io"
+	"os"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/config"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
+	jaegerlog "github.com/uber/jaeger-client-go/log"
 	"github.com/uber/jaeger-lib/metrics"
 )
 
-// Span represents a tracing span
-type Span struct {
-	Name      string
-	StartTime time.Time
-	EndTime   time.Time
-	Tags      map[string]string
-	Events    []Event
-	jaegerSpan opentracing.Span
-}
+// InitTracer initializes the Jaeger tracer
+func InitTracer(serviceName string) (opentracing.Tracer, io.Closer, error) {
+	// Check if tracing is enabled
+	if os.Getenv("TRACING_ENABLED") != "true" {
+		return opentracing.NoopTracer{}, &noopCloser{}, nil
+	}
 
-// Event represents a span event
-type Event struct {
-	Name      string
-	Timestamp time.Time
-	Tags      map[string]string
-}
-
-// Tracer represents a distributed tracer
-type Tracer interface {
-	// StartSpan starts a new span
-	StartSpan(ctx context.Context, name string) (context.Context, Span)
-	// EndSpan ends a span
-	EndSpan(span Span)
-	// AddEvent adds an event to a span
-	AddEvent(span *Span, name string, tags map[string]string)
-	// AddTag adds a tag to a span
-	AddTag(span *Span, key, value string)
-}
-
-// JaegerTracer implements the Tracer interface using Jaeger
-type JaegerTracer struct {
-	tracer opentracing.Tracer
-}
-
-// NewJaegerTracer creates a new Jaeger tracer
-func NewJaegerTracer(serviceName string) (*JaegerTracer, error) {
-	cfg := config.Configuration{
+	// Configure Jaeger
+	cfg := jaegercfg.Configuration{
 		ServiceName: serviceName,
-		Sampler: &config.SamplerConfig{
-			Type:  "const",
+		Sampler: &jaegercfg.SamplerConfig{
+			Type:  jaeger.SamplerTypeConst,
 			Param: 1,
 		},
-		Reporter: &config.ReporterConfig{
-			LogSpans: true,
+		Reporter: &jaegercfg.ReporterConfig{
+			LogSpans:           true,
+			LocalAgentHostPort: os.Getenv("JAEGER_AGENT_HOST") + ":" + os.Getenv("JAEGER_AGENT_PORT"),
 		},
 	}
 
-	tracer, _, err := cfg.NewTracer(
-		config.Logger(jaeger.StdLogger),
-		config.Metrics(metrics.NullFactory),
+	// Initialize tracer
+	jLogger := jaegerlog.StdLogger
+	jMetricsFactory := metrics.NullFactory
+
+	tracer, closer, err := cfg.NewTracer(
+		jaegercfg.Logger(jLogger),
+		jaegercfg.Metrics(jMetricsFactory),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return &JaegerTracer{
-		tracer: tracer,
-	}, nil
+	// Set as global tracer
+	opentracing.SetGlobalTracer(tracer)
+
+	return tracer, closer, nil
 }
 
-// StartSpan implements the Tracer interface
-func (t *JaegerTracer) StartSpan(ctx context.Context, name string) (context.Context, Span) {
-	jaegerSpan := t.tracer.StartSpan(name)
-	ctx = opentracing.ContextWithSpan(ctx, jaegerSpan)
+// noopCloser is a no-op io.Closer
+type noopCloser struct{}
 
-	return ctx, Span{
-		Name:      name,
-		StartTime: time.Now(),
-		Tags:      make(map[string]string),
-		Events:    make([]Event, 0),
-		jaegerSpan: jaegerSpan,
-	}
-}
-
-// EndSpan implements the Tracer interface
-func (t *JaegerTracer) EndSpan(span Span) {
-	span.EndTime = time.Now()
-	span.jaegerSpan.Finish()
-}
-
-// AddEvent implements the Tracer interface
-func (t *JaegerTracer) AddEvent(span *Span, name string, tags map[string]string) {
-	span.Events = append(span.Events, Event{
-		Name:      name,
-		Timestamp: time.Now(),
-		Tags:      tags,
-	})
-	span.jaegerSpan.LogKV("event", name, "tags", tags)
-}
-
-// AddTag implements the Tracer interface
-func (t *JaegerTracer) AddTag(span *Span, key, value string) {
-	if span.Tags == nil {
-		span.Tags = make(map[string]string)
-	}
-	span.Tags[key] = value
-	span.jaegerSpan.SetTag(key, value)
-}
-
-// NoopTracer implements a no-op tracer
-type NoopTracer struct{}
-
-// StartSpan implements the Tracer interface
-func (t *NoopTracer) StartSpan(ctx context.Context, name string) (context.Context, Span) {
-	return ctx, Span{
-		Name:      name,
-		StartTime: time.Now(),
-		Tags:      make(map[string]string),
-		Events:    make([]Event, 0),
-	}
-}
-
-// EndSpan implements the Tracer interface
-func (t *NoopTracer) EndSpan(span Span) {
-	span.EndTime = time.Now()
-}
-
-// AddEvent implements the Tracer interface
-func (t *NoopTracer) AddEvent(span *Span, name string, tags map[string]string) {
-	span.Events = append(span.Events, Event{
-		Name:      name,
-		Timestamp: time.Now(),
-		Tags:      tags,
-	})
-}
-
-// AddTag implements the Tracer interface
-func (t *NoopTracer) AddTag(span *Span, key, value string) {
-	if span.Tags == nil {
-		span.Tags = make(map[string]string)
-	}
-	span.Tags[key] = value
-}
-
-// NewNoopTracer creates a new no-op tracer
-func NewNoopTracer() *NoopTracer {
-	return &NoopTracer{}
+func (n *noopCloser) Close() error {
+	return nil
 }
