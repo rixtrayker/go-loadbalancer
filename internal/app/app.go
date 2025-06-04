@@ -14,7 +14,6 @@ import (
 	"github.com/rixtrayker/go-loadbalancer/internal/middleware"
 	"github.com/rixtrayker/go-loadbalancer/internal/monitoring"
 	"github.com/rixtrayker/go-loadbalancer/internal/tracing"
-	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
 // App represents the load balancer application
@@ -22,7 +21,7 @@ type App struct {
 	config     *configs.Config
 	httpServer *http.Server
 	logger     *logging.Logger
-	metrics    *metrics.Metrics
+	metrics    *monitoring.MetricsCollector
 	tracer     *tracing.Tracer
 }
 
@@ -41,7 +40,7 @@ func New(configPath string) (*App, error) {
 	}
 
 	// Initialize metrics collector
-	metricsCollector := metrics.NewMetrics()
+	metricsCollector := monitoring.NewMetricsCollector(logger)
 	if config.Monitoring.Prometheus.Enabled {
 		if _, err := monitoring.InitializePrometheus(config.Monitoring.Prometheus, logger); err != nil {
 			return nil, err

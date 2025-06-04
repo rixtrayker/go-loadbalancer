@@ -6,26 +6,22 @@ import (
 
 	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
-	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
 // API handles admin API requests
 type API struct {
 	pools   map[string]*serverpool.Pool
 	logger  *logging.Logger
-	metrics *metrics.Metrics
 }
 
 // NewAPI creates a new admin API
 func NewAPI(
 	pools map[string]*serverpool.Pool,
 	logger *logging.Logger,
-	metrics *metrics.Metrics,
 ) *API {
 	return &API{
 		pools:   pools,
 		logger:  logger,
-		metrics: metrics,
 	}
 }
 

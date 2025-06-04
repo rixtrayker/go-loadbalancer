@@ -20,7 +20,7 @@ ARG COMMIT=unknown
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s -X main.version=${VERSION} -X main.buildTime=${BUILD_TIME} -X main.commit=${COMMIT}" \
-    -o loadbalancer .
+    -o go-lb .
 
 # Final stage
 FROM alpine:latest
@@ -36,8 +36,8 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy only necessary files from builder
-COPY --from=builder --chown=appuser:appgroup /build/loadbalancer .
-COPY --from=builder --chown=appuser:appgroup /build/config/config.yml ./config/
+COPY --from=builder --chown=appuser:appgroup /build/go-lb .
+COPY --from=builder --chown=appuser:appgroup /build/configs/config.example.yml ./configs/
 
 # Create a non-root user and switch to it
 USER appuser
@@ -53,4 +53,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
 # Run the application
-ENTRYPOINT ["./loadbalancer"] 
+ENTRYPOINT ["./go-lb"] 
