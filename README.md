@@ -13,6 +13,22 @@
 
 </div>
 
+## 📑 Table of Contents
+
+- [✨ Overview](#-overview)
+- [🎯 Features](#-features)
+- [📁 Project Structure](#-project-structure)
+- [🚀 Quick Start](#-quick-start)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [Running](#running)
+- [⚙️ Configuration](#️-configuration)
+- [🏗️ Architecture](#️-architecture)
+- [🎓 Lessons Learned & Skills](#-lessons-learned--skills-demonstrated)
+- [🤝 Contributing](#-contributing)
+- [📊 Roadmap](#-roadmap)
+
 ---
 
 ## ✨ Overview
@@ -66,23 +82,33 @@ This project showcases an advanced HTTP/S load balancer implementation in Go, de
 
 ```
 go-loadbalancer/
-├── 📄 main.go                    # Application entry point
-├── ⚙️  config/                   # Configuration management
+├── 📄 cmd/go-lb/                # Application entry point
+│   └── main.go                  # Main application file
+├── 🌐 api/                      # API definitions
+│   └── http/v1/                 # HTTP API version 1
+├── ⚙️  configs/                  # Configuration files and templates
 │   ├── config.go                # Configuration structures
 │   └── loader.go                # Configuration loading logic
 ├── 🔒 internal/                  # Internal business logic
-│   ├── context/                 # Request-scoped context
+│   ├── app/                     # Application initialization
+│   ├── admin/                   # Admin interface
 │   ├── backend/                 # Backend server management
 │   ├── healthcheck/             # Health checking system
 │   ├── serverpool/              # Backend pools & algorithms
 │   ├── routing/                 # Request routing engine
 │   ├── policy/                  # Policy enforcement
-│   ├── handler/                 # Core request handlers
-│   └── admin/                   # Admin interface (optional)
-└── 📦 pkg/                      # Reusable utilities
-    ├── logging/                 # Structured logging
-    ├── metrics/                 # Performance metrics
-    └── tracer/                  # Distributed tracing
+│   └── handler/                 # Core request handlers
+├── 📦 pkg/                      # Reusable utilities
+│   ├── logging/                 # Structured logging
+│   ├── metrics/                 # Performance metrics
+│   └── tracer/                  # Distributed tracing
+├── 🧪 test/                     # Additional test applications
+├── 🔧 scripts/                  # Scripts for various tasks
+├── 🚢 deployments/              # Deployment configurations
+│   └── docker/                  # Docker-related files
+├── 📊 tools/                    # Tools and utilities
+│   └── k6/                      # K6 load testing scripts
+└── 📚 docs/                     # Documentation files
 ```
 
 ---
@@ -188,6 +214,78 @@ For detailed configuration options, see the [Configuration Guide](docs/configura
 | **Health Checker** | Continuous backend monitoring |
 | **Policy Engine** | Request/response transformation and control |
 | **Admin Interface** | Runtime configuration and monitoring |
+
+---
+
+## 🎓 Lessons Learned & Skills Demonstrated
+
+This project serves as an excellent learning resource, demonstrating several important concepts and best practices in Go development:
+
+### 🏗️ Code Organization & Structure
+- Standard Go project layout with clear separation of concerns
+- Modular architecture with well-defined package boundaries
+- Clean code principles and SOLID design patterns
+- Effective use of Go's package system
+
+### 🔧 Configuration Management
+- YAML-based configuration with environment variable overrides
+- Structured data types for configuration options
+- Sensible default values and validation
+- Runtime configuration updates
+
+### ⚡ Load Balancing Implementation
+- Multiple load balancing algorithms (Round Robin, Least Connections, Weighted)
+- Thread-safe counter manipulation using atomic operations
+- Efficient backend health checking and management
+- Connection tracking and management
+
+### 🌐 HTTP Handling
+- Efficient request proxying with `httputil.NewSingleHostReverseProxy`
+- Proper request/response header management
+- Context-based request cancellation and timeout handling
+- Graceful server shutdown implementation
+
+### 🔒 Concurrency & Thread Safety
+- Effective use of `sync.RWMutex` for concurrent operations
+- Atomic operations for counter updates
+- Proper locking mechanisms for shared resources
+- Thread-safe backend selection algorithms
+
+### 🛡️ Policy Implementation
+- Rate limiting using token bucket algorithm
+- IP-based access control (ACL)
+- Header transformation policies
+- Policy chain implementation
+
+### 🏥 Health Checking
+- HTTP and TCP health check implementations
+- Context-based health check cancellation
+- Periodic health check scheduling
+- Health check result management
+
+### 🛣️ Routing
+- Regular expression-based pattern matching
+- Host, path, and header-based routing
+- Efficient route lookup using maps
+- Dynamic route configuration
+
+### 📊 Logging & Monitoring
+- Structured logging with logrus
+- Multiple log levels implementation
+- Prometheus metrics integration
+- Grafana dashboard setup
+
+### 🐳 Docker & Deployment
+- Multi-stage Docker builds
+- Docker health check implementation
+- Security-focused container configuration
+- Environment variable management
+
+### 🛠️ Development Tools
+- Makefile for common development tasks
+- Build and test automation
+- Linting with golangci-lint
+- Proper cleanup procedures
 
 ---
 
