@@ -36,7 +36,7 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = "sha256-0000000000000000000000000000000000000000000000000000";
+          vendorHash = null;
 
           meta = with pkgs.lib; {
             description = "A Go-based load balancer";
