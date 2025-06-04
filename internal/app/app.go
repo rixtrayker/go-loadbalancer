@@ -43,7 +43,7 @@ func New(configPath string) (*App, error) {
 	// Initialize metrics collector
 	metricsCollector := metrics.NewMetrics()
 	if config.Monitoring.Prometheus.Enabled {
-		if err := monitoring.InitializePrometheus(config.Monitoring.Prometheus); err != nil {
+		if _, err := monitoring.InitializePrometheus(config.Monitoring.Prometheus, logger); err != nil {
 			return nil, err
 		}
 	}
@@ -51,7 +51,7 @@ func New(configPath string) (*App, error) {
 	// Initialize tracer if enabled
 	var tracer *tracing.Tracer
 	if config.Monitoring.Tracing.Enabled {
-		tracer, err = tracing.NewTracer(config.Monitoring.Tracing)
+		tracer, err = tracing.NewTracer(config.Monitoring.Tracing, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func New(configPath string) (*App, error) {
 	}
 
 	// Setup HTTP server with monitoring middleware
-	var handler http.Handler = httpHandler.NewHandler(config, logger, metricsCollector)
+	var handler http.Handler = httpHandler.NewHandler(config, logger)
 	if config.Monitoring.Prometheus.Enabled {
 		handler = middleware.MonitoringMiddleware(handler)
 	}

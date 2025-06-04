@@ -10,6 +10,7 @@ import (
 	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -21,6 +22,43 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+// DefaultConfig returns the default tracing configuration
+func DefaultConfig() configs.TracingConfig {
+	return configs.TracingConfig{
+		Enabled:        false,
+		ServiceName:    "go-loadbalancer",
+		ServiceVersion: "0.1.0",
+		Environment:    "development",
+		Endpoint:       "localhost:4317",
+		SamplingRate:   1.0,
+		Protocol:       "grpc",
+		Secure:         false,
+	}
+}
+
+// applyDefaults applies default values to the configuration if they are not set
+func applyDefaults(config *configs.TracingConfig) {
+	defaultConfig := DefaultConfig()
+	if config.ServiceName == "" {
+		config.ServiceName = defaultConfig.ServiceName
+	}
+	if config.ServiceVersion == "" {
+		config.ServiceVersion = defaultConfig.ServiceVersion
+	}
+	if config.Environment == "" {
+		config.Environment = defaultConfig.Environment
+	}
+	if config.Endpoint == "" {
+		config.Endpoint = defaultConfig.Endpoint
+	}
+	if config.SamplingRate == 0 {
+		config.SamplingRate = defaultConfig.SamplingRate
+	}
+	if config.Protocol == "" {
+		config.Protocol = defaultConfig.Protocol
+	}
+}
 
 // Tracer represents the OpenTelemetry tracer
 type Tracer struct {
@@ -37,6 +75,9 @@ func NewTracer(config configs.TracingConfig, logger *logging.Logger) (*Tracer, e
 			logger: logger,
 		}, nil
 	}
+
+	// Apply default values
+	applyDefaults(&config)
 
 	// Create resource with service information
 	res, err := resource.New(
@@ -169,9 +210,9 @@ func TracingMiddleware(next http.Handler) http.Handler {
 
 		// Record error if status code indicates error
 		if rw.statusCode >= 400 {
-			span.SetStatus(trace.StatusCodeError, fmt.Sprintf("HTTP %d", rw.statusCode))
+			span.SetStatus(codes.Error, fmt.Sprintf("%s: %s", rw.statusCode, http.StatusText(rw.statusCode)))
 		} else {
-			span.SetStatus(trace.StatusCodeOk, "")
+			span.SetStatus(codes.Ok, "")
 		}
 	})
 }

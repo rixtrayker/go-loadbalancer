@@ -74,7 +74,7 @@ var (
 
 	// Connection metrics
 	ActiveConnections = promauto.NewGaugeVec(
-		prometheus.CounterOpts{
+		prometheus.GaugeOpts{
 			Name: "loadbalancer_active_connections",
 			Help: "Number of active connections",
 		},

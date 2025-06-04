@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/rixtrayker/go-loadbalancer/configs"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // Logger provides structured logging capabilities
@@ -161,10 +161,13 @@ func (l *Logger) With(args ...interface{}) *Logger {
 // SetOutput sets the logger output
 func (l *Logger) SetOutput(output io.Writer) {
 	// Create a new core with the given output
+	enc := zapcore.NewJSONEncoder(zapcore.EncoderConfig{})
+	// TODO: get the level from the logger
+	levelEnabler := zapcore.LevelEnabler(zapcore.InfoLevel)
 	core := zapcore.NewCore(
-		l.logger.Core().Encoder(),
+		enc,
 		zapcore.AddSync(output),
-		l.logger.Core().Level(),
+		levelEnabler,
 	)
 
 	// Create a new logger with the new core
