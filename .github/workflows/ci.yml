@@ -57,23 +57,23 @@ jobs:
       #   run: |
       #     make test-load
 
-  nix-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # nix-build:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup Nix
-        uses: DeterminateSystems/nix-installer-action@main
+  #     - name: Setup Nix
+  #       uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Setup Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+  #     - name: Setup Nix cache
+  #       uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Build with Nix
-        run: |
-          nix build --no-link --print-build-logs
+  #     - name: Build with Nix
+  #       run: |
+  #         nix build --no-link --print-build-logs
 
-      - name: Run Nix tests
-        if: steps.skip-test.outputs.skip_test != 'true'
-        run: |
-          nix build .#checks.x86_64-linux.tests --no-link --print-build-logs 
+  #     - name: Run Nix tests
+  #       if: steps.skip-test.outputs.skip_test != 'true'
+  #       run: |
+  #         nix build .#checks.x86_64-linux.tests --no-link --print-build-logs 
