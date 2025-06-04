@@ -46,7 +46,11 @@ jobs:
       - name: Run integration tests
         if: steps.skip-test.outputs.skip_test != 'true'
         run: |
-          make test-integration
+          if [[ "$(go env GOOS)/$(go env GOARCH)" == "linux/amd64" ]]; then
+            go test -tags=integration -v -cover ./...
+          else
+            go test -tags=integration -v -race -cover ./...
+          fi
 
       - name: Run load tests
         if: steps.skip-test.outputs.skip_test != 'true'
