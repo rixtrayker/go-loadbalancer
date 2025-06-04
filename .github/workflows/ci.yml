@@ -71,9 +71,9 @@ jobs:
 
       - name: Build with Nix
         run: |
-          nix build
+          nix build --no-link --print-build-logs
 
       - name: Run Nix tests
         if: steps.skip-test.outputs.skip_test != 'true'
         run: |
-          nix build .#checks.x86_64-linux.tests 
+          nix build .#checks.x86_64-linux.tests --no-link --print-build-logs 
