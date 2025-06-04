@@ -1,43 +1,45 @@
 package algorithms
 
 import (
+	"net/http"
 	"sync/atomic"
 
-	"github.com/amr/go-loadbalancer/internal/backend"
+	"github.com/rixtrayker/go-loadbalancer/internal/backend"
 )
 
 // RoundRobin implements the round-robin load balancing algorithm
 type RoundRobin struct {
-	BaseAlgorithm
-	current uint64
+	backends []*backend.Backend
+	current  uint32
 }
 
-// NewRoundRobin creates a new round-robin algorithm
-func NewRoundRobin() *RoundRobin {
+// NewRoundRobin creates a new round-robin algorithm instance
+func NewRoundRobin(backends []*backend.Backend) *RoundRobin {
 	return &RoundRobin{
-		BaseAlgorithm: BaseAlgorithm{
-			name: "round-robin",
-		},
+		backends: backends,
+		current:  0,
 	}
 }
 
-// Next returns the next backend using round-robin selection
-func (rr *RoundRobin) Next(backends []*backend.Backend) *backend.Backend {
-	if len(backends) == 0 {
+// NextBackend selects the next backend in a round-robin fashion
+func (rr *RoundRobin) NextBackend(r *http.Request) *backend.Backend {
+	if len(rr.backends) == 0 {
 		return nil
 	}
 
-	// Try to find an available backend
-	for i := 0; i < len(backends); i++ {
-		// Get the next backend index using atomic operations
-		next := atomic.AddUint64(&rr.current, 1)
-		index := next % uint64(len(backends))
-		backend := backends[index]
-
-		if backend.IsAvailable() {
-			return backend
+	// Get only healthy backends
+	healthyBackends := make([]*backend.Backend, 0, len(rr.backends))
+	for _, b := range rr.backends {
+		if b.IsHealthy() {
+			healthyBackends = append(healthyBackends, b)
 		}
 	}
 
-	return nil
+	if len(healthyBackends) == 0 {
+		return nil
+	}
+
+	// Get the next index in a thread-safe way
+	idx := int(atomic.AddUint32(&rr.current, 1) - 1) % len(healthyBackends)
+	return healthyBackends[idx]
 }

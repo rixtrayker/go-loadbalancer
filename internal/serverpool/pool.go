@@ -1,91 +1,98 @@
 package serverpool
 
 import (
+	"errors"
+	"net/http"
 	"sync"
 
-	"github.com/amr/go-loadbalancer/internal/backend"
-	"github.com/amr/go-loadbalancer/internal/serverpool/algorithms"
+	"github.com/rixtrayker/go-loadbalancer/configs"
+	"github.com/rixtrayker/go-loadbalancer/internal/backend"
+	"github.com/rixtrayker/go-loadbalancer/internal/serverpool/algorithms"
 )
 
-// Pool represents a pool of backend servers
+// Pool represents a group of backend servers
 type Pool struct {
-	backends  []*backend.Backend
-	algorithm algorithms.Algorithm
-	mu       sync.RWMutex
+	Name      string
+	Backends  []*backend.Backend
+	Algorithm algorithms.Algorithm
+	mutex     sync.RWMutex
 }
 
-// NewPool creates a new server pool
-func NewPool() *Pool {
+// NewPool creates a new backend pool
+func NewPool(config configs.BackendPoolConfig) (*Pool, error) {
+	if len(config.Backends) == 0 {
+		return nil, errors.New("no backends provided")
+	}
+
+	// Create backends
+	backends := make([]*backend.Backend, 0, len(config.Backends))
+	for _, backendConfig := range config.Backends {
+		b, err := backend.NewBackend(backendConfig.URL, backendConfig.Weight)
+		if err != nil {
+			return nil, err
+		}
+		backends = append(backends, b)
+	}
+
+	// Create load balancing algorithm
+	var algorithm algorithms.Algorithm
+	switch config.Algorithm {
+	case "round_robin":
+		algorithm = algorithms.NewRoundRobin(backends)
+	case "least_conn":
+		algorithm = algorithms.NewLeastConn(backends)
+	case "weighted":
+		algorithm = algorithms.NewWeighted(backends)
+	default:
+		algorithm = algorithms.NewRoundRobin(backends)
+	}
+
 	return &Pool{
-		backends: make([]*backend.Backend, 0),
-	}
+		Name:      config.Name,
+		Backends:  backends,
+		Algorithm: algorithm,
+	}, nil
 }
 
-// NewBackend creates a new backend instance
-func NewBackend(url string, weight int) (*backend.Backend, error) {
-	return backend.NewBackend("", url, weight, 100)
-}
+// NextBackend selects the next backend for a request
+func (p *Pool) NextBackend(r *http.Request) (*backend.Backend, error) {
+	p.mutex.RLock()
+	defer p.mutex.RUnlock()
 
-// AddBackend adds a backend to the pool
-func (p *Pool) AddBackend(b *backend.Backend) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.backends = append(p.backends, b)
-}
-
-// RemoveBackend removes a backend from the pool
-func (p *Pool) RemoveBackend(urlStr string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	for i, b := range p.backends {
-		if b.URL.String() == urlStr {
-			p.backends = append(p.backends[:i], p.backends[i+1:]...)
-			return
+	// Get healthy backends
+	healthyBackends := make([]*backend.Backend, 0, len(p.Backends))
+	for _, b := range p.Backends {
+		if b.IsHealthy() {
+			healthyBackends = append(healthyBackends, b)
 		}
 	}
+
+	if len(healthyBackends) == 0 {
+		return nil, errors.New("no healthy backends available")
+	}
+
+	// Select backend using the algorithm
+	b := p.Algorithm.NextBackend(r)
+	if b == nil {
+		return nil, errors.New("failed to select backend")
+	}
+
+	// Update backend stats
+	b.IncrementRequests()
+	b.IncrementConnections()
+
+	return b, nil
 }
 
-// GetBackends returns all backends in the pool
-func (p *Pool) GetBackends() []*backend.Backend {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+// MarkBackendStatus updates the health status of a backend
+func (p *Pool) MarkBackendStatus(url string, healthy bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	backends := make([]*backend.Backend, len(p.backends))
-	copy(backends, p.backends)
-	return backends
-}
-
-// GetAvailableBackends returns all available backends
-func (p *Pool) GetAvailableBackends() []*backend.Backend {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	var available []*backend.Backend
-	for _, b := range p.backends {
-		if b.IsAvailable() {
-			available = append(available, b)
+	for _, b := range p.Backends {
+		if b.URL.String() == url {
+			b.SetHealth(healthy)
+			break
 		}
 	}
-	return available
-}
-
-// Size returns the number of backends in the pool
-func (p *Pool) Size() int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return len(p.backends)
-}
-
-// SetAlgorithm sets the load balancing algorithm
-func (p *Pool) SetAlgorithm(algorithm algorithms.Algorithm) {
-	p.algorithm = algorithm
-}
-
-// GetNextBackend returns the next backend using the configured algorithm
-func (p *Pool) GetNextBackend() *backend.Backend {
-	if p.algorithm == nil {
-		return nil
-	}
-	return p.algorithm.Next(p.GetAvailableBackends())
 }

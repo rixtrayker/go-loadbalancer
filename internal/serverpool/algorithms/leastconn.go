@@ -1,42 +1,49 @@
 package algorithms
 
 import (
-	"sync/atomic"
+	"net/http"
 
-	"github.com/amr/go-loadbalancer/internal/backend"
+	"github.com/rixtrayker/go-loadbalancer/internal/backend"
 )
 
 // LeastConn implements the least connections load balancing algorithm
 type LeastConn struct {
-	BaseAlgorithm
+	backends []*backend.Backend
 }
 
-// NewLeastConn creates a new least connections algorithm
-func NewLeastConn() *LeastConn {
+// NewLeastConn creates a new least connections algorithm instance
+func NewLeastConn(backends []*backend.Backend) *LeastConn {
 	return &LeastConn{
-		BaseAlgorithm: BaseAlgorithm{
-			name: "least-connections",
-		},
+		backends: backends,
 	}
 }
 
-// Next returns the backend with the least number of active connections
-func (lc *LeastConn) Next(backends []*backend.Backend) *backend.Backend {
-	if len(backends) == 0 {
+// NextBackend selects the backend with the least active connections
+func (lc *LeastConn) NextBackend(r *http.Request) *backend.Backend {
+	if len(lc.backends) == 0 {
 		return nil
 	}
 
-	var selected *backend.Backend
-	var minConns int32 = -1
-
-	for _, b := range backends {
-		if !b.IsAvailable() {
-			continue
+	// Get only healthy backends
+	healthyBackends := make([]*backend.Backend, 0, len(lc.backends))
+	for _, b := range lc.backends {
+		if b.IsHealthy() {
+			healthyBackends = append(healthyBackends, b)
 		}
+	}
 
-		conns := atomic.LoadInt32(&b.CurrentConns)
-		if minConns == -1 || conns < minConns {
-			minConns = conns
+	if len(healthyBackends) == 0 {
+		return nil
+	}
+
+	// Find the backend with the least connections
+	var selected *backend.Backend
+	minConn := -1
+
+	for _, b := range healthyBackends {
+		conns := b.GetActiveConnections()
+		if minConn == -1 || conns < minConn {
+			minConn = conns
 			selected = b
 		}
 	}
