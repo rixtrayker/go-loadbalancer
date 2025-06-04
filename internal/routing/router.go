@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/rixtrayker/go-loadbalancer/configs"
+	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
-	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
 )
 
 // Router handles request routing

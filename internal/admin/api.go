@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
-	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
 	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
