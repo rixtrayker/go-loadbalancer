@@ -36,4 +36,4 @@ policies:
       X-Forwarded-Proto: https
     removeHeaders:
       - X-Forwarded-For
-      - X-Real-IP 
+      - X-Real-IP
