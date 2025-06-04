@@ -1,34 +1,68 @@
 package algorithms
 
 import (
+	"sync"
+
 	"github.com/amr/go-loadbalancer/internal/backend"
 )
 
-// Algorithm defines the interface for load balancing algorithms
-type Algorithm interface {
-	// GetNextBackend returns the next backend to use
-	GetNextBackend(backends []*backend.Backend) *backend.Backend
+// BaseAlgorithm provides common functionality for algorithms
+type BaseAlgorithm struct {
+	name     string
+	backends []*backend.Backend
+	mu       sync.RWMutex
 }
 
-// RoundRobin implements round-robin load balancing
-type RoundRobin struct {
-	current int
+// Name returns the name of the algorithm
+func (b *BaseAlgorithm) Name() string {
+	return b.name
 }
 
-// NewRoundRobin creates a new round-robin algorithm
-func NewRoundRobin() *RoundRobin {
-	return &RoundRobin{
-		current: 0,
+// AddBackend adds a backend to the algorithm
+func (b *BaseAlgorithm) AddBackend(backend *backend.Backend) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.backends = append(b.backends, backend)
+}
+
+// RemoveBackend removes a backend from the algorithm
+func (b *BaseAlgorithm) RemoveBackend(name string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for i, backend := range b.backends {
+		if backend.Name == name {
+			b.backends = append(b.backends[:i], b.backends[i+1:]...)
+			return
+		}
 	}
 }
 
-// GetNextBackend implements the Algorithm interface
-func (rr *RoundRobin) GetNextBackend(backends []*backend.Backend) *backend.Backend {
-	if len(backends) == 0 {
-		return nil
-	}
+// GetBackends returns all backends
+func (b *BaseAlgorithm) GetBackends() []*backend.Backend {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	result := make([]*backend.Backend, len(b.backends))
+	copy(result, b.backends)
+	return result
+}
 
-	backend := backends[rr.current]
-	rr.current = (rr.current + 1) % len(backends)
-	return backend
-} 
+// GetAvailableBackends returns all available backends
+func (b *BaseAlgorithm) GetAvailableBackends() []*backend.Backend {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	
+	available := make([]*backend.Backend, 0)
+	for _, backend := range b.backends {
+		if backend.IsAvailable() {
+			available = append(available, backend)
+		}
+	}
+	return available
+}
+
+// Size returns the number of backends
+func (b *BaseAlgorithm) Size() int {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return len(b.backends)
+}

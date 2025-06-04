@@ -21,13 +21,3 @@ type Algorithm interface {
 	// Size returns the number of backends
 	Size() int
 }
-
-// BaseAlgorithm provides common functionality for algorithms
-type BaseAlgorithm struct {
-	name string
-}
-
-// Name returns the name of the algorithm
-func (b *BaseAlgorithm) Name() string {
-	return b.name
-} 

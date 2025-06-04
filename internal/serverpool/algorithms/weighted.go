@@ -85,5 +85,4 @@ func (w *Weighted) GetAvailableBackends() []*backend.Backend {
 func (w *Weighted) Size() int {
 	// Implementation needed
 	return 0
-} 
-} 
+}
