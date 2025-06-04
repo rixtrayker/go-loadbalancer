@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-0.1.0--beta-blue.svg)](https://github.com/rixtrayker/go-loadbalancer)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/rixtrayker/go-loadbalancer)
 [![Go Version](https://img.shields.io/badge/go-1.18+-00ADD8.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
@@ -19,12 +19,9 @@
 - [🎯 Features](#-features)
 - [📁 Project Structure](#-project-structure)
 - [🚀 Quick Start](#-quick-start)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Configuration](#configuration)
-  - [Running](#running)
 - [⚙️ Configuration](#️-configuration)
 - [🏗️ Architecture](#️-architecture)
+- [🔍 Observability](#-observability)
 - [🎓 Lessons Learned & Skills](#-lessons-learned--skills-demonstrated)
 - [🤝 Contributing](#-contributing)
 - [📊 Roadmap](#-roadmap)
@@ -80,6 +77,8 @@ This project showcases an advanced HTTP/S load balancer implementation in Go, de
 
 ## 📁 Project Structure
 
+The project follows the standard Go project layout:
+
 ```
 go-loadbalancer/
 ├── 📄 cmd/go-lb/                # Application entry point
@@ -94,14 +93,15 @@ go-loadbalancer/
 │   ├── admin/                   # Admin interface
 │   ├── backend/                 # Backend server management
 │   ├── healthcheck/             # Health checking system
+│   ├── logging/                 # Structured logging
+│   ├── middleware/              # HTTP middleware
+│   ├── monitoring/              # Metrics and monitoring
 │   ├── serverpool/              # Backend pools & algorithms
 │   ├── routing/                 # Request routing engine
 │   ├── policy/                  # Policy enforcement
+│   ├── tracing/                 # Distributed tracing
 │   └── handler/                 # Core request handlers
 ├── 📦 pkg/                      # Reusable utilities
-│   ├── logging/                 # Structured logging
-│   ├── metrics/                 # Performance metrics
-│   └── tracer/                  # Distributed tracing
 ├── 🧪 test/                     # Additional test applications
 ├── 🔧 scripts/                  # Scripts for various tasks
 ├── 🚢 deployments/              # Deployment configurations
@@ -130,12 +130,33 @@ git clone https://github.com/rixtrayker/go-loadbalancer.git
 cd go-loadbalancer
 
 # Build the project
-go build -o go-lb .
+go build -o build/go-lb ./cmd/go-lb
 ```
 
-### Configuration
+### Running
 
-Create a `config.yaml` file with your configuration:
+```bash
+# Start with default configuration
+./build/go-lb
+
+# Or specify a config file
+./build/go-lb --config configs/config.yml
+```
+
+---
+
+## ⚙️ Configuration
+
+The load balancer uses a flexible configuration system supporting:
+
+- **🎯 Listener Settings**: Address, port, TLS configuration
+- **🏊 Backend Pools**: Server groups with load balancing algorithms
+- **💓 Health Checks**: Monitoring intervals, timeouts, and probe types
+- **🛣️ Routing Rules**: Complex request matching and forwarding
+- **📋 Policies**: Rate limiting, transformations, and access control
+- **📊 Monitoring**: Logging, metrics, and tracing configuration
+
+### Configuration Example
 
 ```yaml
 server:
@@ -161,38 +182,17 @@ routing_rules:
     target_pool: "web-servers"
     policies:
       - rate_limit: "100/minute"
+
+monitoring:
+  prometheus:
+    enabled: true
+    path: "/metrics"
+    port: 9090
+  tracing:
+    enabled: true
+    service_name: "go-loadbalancer"
+    endpoint: "localhost:4317"
 ```
-
-### Running
-
-```bash
-# Start with default configuration
-./go-lb
-
-# Or specify a config file
-./go-lb --config config.yaml
-```
-
----
-
-## ⚙️ Configuration
-
-The load balancer uses a flexible configuration system supporting:
-
-- **🎯 Listener Settings**: Address, port, TLS configuration
-- **🏊 Backend Pools**: Server groups with load balancing algorithms
-- **💓 Health Checks**: Monitoring intervals, timeouts, and probe types
-- **🛣️ Routing Rules**: Complex request matching and forwarding
-- **📋 Policies**: Rate limiting, transformations, and access control
-
-### Configuration Sources
-
-- YAML files
-- Environment variables
-- Command-line flags
-- Runtime API updates
-
-For detailed configuration options, see the [Configuration Guide](docs/configuration.md).
 
 ---
 
@@ -217,95 +217,49 @@ For detailed configuration options, see the [Configuration Guide](docs/configura
 
 ---
 
+## 🔍 Observability
+
+The load balancer includes comprehensive observability features:
+
+### Logging
+
+- Structured JSON logging with zap
+- Configurable log levels and formats
+- Trace context correlation
+
+### Metrics
+
+- Prometheus metrics for all components
+- Request/response metrics
+- Backend health and performance metrics
+- System resource usage
+
+### Tracing
+
+- OpenTelemetry integration
+- Distributed tracing support
+- Trace context propagation
+- Span attributes for detailed analysis
+
+---
+
 ## 🎓 Lessons Learned & Skills Demonstrated
 
 This project serves as an excellent learning resource, demonstrating several important concepts and best practices in Go development:
 
-### 🏗️ Code Organization & Structure
-- Standard Go project layout with clear separation of concerns
-- Modular architecture with well-defined package boundaries
-- Clean code principles and SOLID design patterns
-- Effective use of Go's package system
-
-### 🔧 Configuration Management
-- YAML-based configuration with environment variable overrides
-- Structured data types for configuration options
-- Sensible default values and validation
-- Runtime configuration updates
-
-### ⚡ Load Balancing Implementation
-- Multiple load balancing algorithms (Round Robin, Least Connections, Weighted)
-- Thread-safe counter manipulation using atomic operations
-- Efficient backend health checking and management
-- Connection tracking and management
-
-### 🌐 HTTP Handling
-- Efficient request proxying with `httputil.NewSingleHostReverseProxy`
-- Proper request/response header management
-- Context-based request cancellation and timeout handling
-- Graceful server shutdown implementation
-
-### 🔒 Concurrency & Thread Safety
-- Effective use of `sync.RWMutex` for concurrent operations
-- Atomic operations for counter updates
-- Proper locking mechanisms for shared resources
-- Thread-safe backend selection algorithms
-
-### 🛡️ Policy Implementation
-- Rate limiting using token bucket algorithm
-- IP-based access control (ACL)
-- Header transformation policies
-- Policy chain implementation
-
-### 🏥 Health Checking
-- HTTP and TCP health check implementations
-- Context-based health check cancellation
-- Periodic health check scheduling
-- Health check result management
-
-### 🛣️ Routing
-- Regular expression-based pattern matching
-- Host, path, and header-based routing
-- Efficient route lookup using maps
-- Dynamic route configuration
-
-### 📊 Logging & Monitoring
-- Structured logging with logrus
-- Multiple log levels implementation
-- Prometheus metrics integration
-- Grafana dashboard setup
-
-### 🐳 Docker & Deployment
-- Multi-stage Docker builds
-- Docker health check implementation
-- Security-focused container configuration
-- Environment variable management
-
-### 🛠️ Development Tools
-- Makefile for common development tasks
-- Build and test automation
-- Linting with golangci-lint
-- Proper cleanup procedures
+- Standard Go project layout
+- Modular architecture with clean interfaces
+- Effective use of middleware patterns
+- Comprehensive observability implementation
+- Advanced configuration management
+- Multiple load balancing algorithms
+- Policy-based request handling
 
 ---
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
-
-### Getting Started
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. 💾 Commit your changes (`git commit -m 'Add amazing feature'`)
-4. 📤 Push to the branch (`git push origin feature/amazing-feature`)
-5. 🔄 Open a Pull Request
-
-### Areas for Contribution
-- 🐛 **Bug Reports**: Help us identify and fix issues
-- ✨ **Feature Requests**: Suggest new functionality
-- 📝 **Documentation**: Improve guides and examples
-- 🧪 **Testing**: Add test cases and scenarios
-- 🎨 **UI/UX**: Enhance the admin interface
+We welcome contributions! See the [Contributing Guide](docs/contributing.md) for more information.
 
 ---
 
@@ -315,7 +269,6 @@ We welcome contributions! Here's how you can help:
 - [ ] **Docker Integration**: Containerized deployment
 - [ ] **Kubernetes Support**: Native K8s integration
 - [ ] **WebSocket Proxying**: Real-time connection support
-- [ ] **Advanced Metrics**: Prometheus integration
 - [ ] **Circuit Breaker**: Fault tolerance patterns
 
 ---
@@ -323,34 +276,6 @@ We welcome contributions! Here's how you can help:
 ## 📄 License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
-### What does this mean?
-
-The MIT License is a permissive license that is short and to the point. It lets people do anything they want with your code as long as they provide attribution back to you and don't hold you liable.
-
-**You are free to:**
-- ✅ Use this code commercially
-- ✅ Modify the code
-- ✅ Distribute the code
-- ✅ Use it privately
-- ✅ Sublicense it
-
-**Under the following conditions:**
-- ℹ️ Include the original copyright notice
-- ℹ️ Include the license text
-
-**No liability:**
-- 🛡️ The software is provided "as is", without warranty of any kind
-
-For more information, please refer to the [LICENSE](LICENSE) file in this repository.
-
----
-
-## 🙏 Acknowledgments
-
-- **Go Community**: For excellent standard libraries and ecosystem
-- **net/http/httputil**: Core reverse proxy functionality
-- **Open Source Contributors**: For inspiration and best practices
 
 ---
 
