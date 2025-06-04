@@ -3,7 +3,7 @@
 <div align="center">
 
 [![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/rixtrayker/go-loadbalancer)
-[![Go Version](https://img.shields.io/badge/go-1.18+-00ADD8.svg)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 
@@ -15,16 +15,33 @@
 
 ## 📑 Table of Contents
 
-- [✨ Overview](#-overview)
-- [🎯 Features](#-features)
-- [📁 Project Structure](#-project-structure)
-- [🚀 Quick Start](#-quick-start)
-- [⚙️ Configuration](#️-configuration)
-- [🏗️ Architecture](#️-architecture)
-- [🔍 Observability](#-observability)
-- [🎓 Lessons Learned & Skills](#-lessons-learned--skills-demonstrated)
-- [🤝 Contributing](#-contributing)
-- [📊 Roadmap](#-roadmap)
+- [🚀 Advanced Go Load Balancer](#-advanced-go-load-balancer)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [✨ Overview](#-overview)
+  - [🎯 Features](#-features)
+    - [🔄 **Load Balancing**](#-load-balancing)
+    - [🏥 **Health Monitoring**](#-health-monitoring)
+    - [🛣️ **Advanced Routing**](#️-advanced-routing)
+    - [🛡️ **Policy Enforcement**](#️-policy-enforcement)
+    - [🔧 **Additional Features**](#-additional-features)
+  - [📁 Project Structure](#-project-structure)
+  - [🚀 Quick Start](#-quick-start)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Running](#running)
+  - [⚙️ Configuration](#️-configuration)
+    - [Configuration Example](#configuration-example)
+  - [🏗️ Architecture](#️-architecture)
+    - [Design Principles](#design-principles)
+    - [Core Components](#core-components)
+  - [🔍 Observability](#-observability)
+    - [Logging](#logging)
+    - [Metrics](#metrics)
+    - [Tracing](#tracing)
+  - [🎓 Lessons Learned \& Skills Demonstrated](#-lessons-learned--skills-demonstrated)
+  - [🤝 Contributing](#-contributing)
+  - [📊 Roadmap](#-roadmap)
+  - [📄 License](#-license)
 
 ---
 
@@ -117,7 +134,7 @@ go-loadbalancer/
 
 ### Prerequisites
 
-- **Go 1.18+** installed on your system
+- **Go 1.23+** installed on your system
 - Backend services to load balance (for testing)
 
 ### Installation

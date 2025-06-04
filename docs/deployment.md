@@ -413,7 +413,7 @@ server:
 When deploying with Docker, use a non-root user:
 
 ```dockerfile
-FROM golang:1.18-alpine AS builder
+FROM golang:1.24-alpine AS builder
 # ... build steps ...
 
 FROM alpine:3.16

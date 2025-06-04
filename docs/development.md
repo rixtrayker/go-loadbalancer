@@ -62,7 +62,7 @@ graph TD
 
 ### Prerequisites
 
-- Go 1.18 or higher
+- Go 1.23 or higher
 - Git
 - Make (optional, for using the Makefile)
 - Docker (optional, for containerized development)

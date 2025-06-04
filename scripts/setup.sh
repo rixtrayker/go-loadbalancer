@@ -9,7 +9,7 @@ echo "Setting up Go Load Balancer development environment..."
 
 # Check Go installation
 if ! command -v go &> /dev/null; then
-    echo "Error: Go is not installed. Please install Go 1.18 or higher."
+    echo "Error: Go is not installed. Please install Go 1.23 or higher."
     exit 1
 fi
 
