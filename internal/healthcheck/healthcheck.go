@@ -37,12 +37,12 @@ func (hc *HealthChecker) AddBackend(b *backend.Backend) {
 }
 
 // RemoveBackend removes a backend from health checking
-func (hc *HealthChecker) RemoveBackend(url string) {
+func (hc *HealthChecker) RemoveBackend(urlStr string) {
 	hc.mu.Lock()
 	defer hc.mu.Unlock()
 	
 	for i, b := range hc.backends {
-		if b.URL == url {
+		if b.URL.String() == urlStr {
 			hc.backends = append(hc.backends[:i], hc.backends[i+1:]...)
 			return
 		}
@@ -92,15 +92,12 @@ func (hc *HealthChecker) checkBackend(b *backend.Backend) {
 
 	switch hc.probeType {
 	case "http":
-		healthy, err = checkHTTP(ctx, b.URL)
+		healthy, err = checkHTTP(ctx, b.URL.String())
 	case "tcp":
-		healthy, err = checkTCP(ctx, b.URL)
+		healthy, err = checkTCP(ctx, b.URL.String())
 	default:
-		healthy, err = checkHTTP(ctx, b.URL)
+		healthy, err = checkHTTP(ctx, b.URL.String())
 	}
-
-	b.mu.Lock()
-	defer b.mu.Unlock()
 
 	if err != nil || !healthy {
 		b.Healthy = false
@@ -128,4 +125,4 @@ func checkTCP(ctx context.Context, url string) (bool, error) {
 	// For now, we'll just log that we're checking
 	log.Printf("Checking health of backend %s via TCP", url)
 	return true, nil
-} 
+}

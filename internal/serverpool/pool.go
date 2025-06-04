@@ -35,12 +35,12 @@ func (p *Pool) AddBackend(b *backend.Backend) {
 }
 
 // RemoveBackend removes a backend from the pool
-func (p *Pool) RemoveBackend(url string) {
+func (p *Pool) RemoveBackend(urlStr string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	for i, b := range p.backends {
-		if b.URL == url {
+		if b.URL.String() == urlStr {
 			p.backends = append(p.backends[:i], p.backends[i+1:]...)
 			return
 		}
@@ -88,5 +88,5 @@ func (p *Pool) GetNextBackend() *backend.Backend {
 	if p.algorithm == nil {
 		return nil
 	}
-	return p.algorithm.GetNextBackend(p.GetAvailableBackends())
-} 
+	return p.algorithm.Next(p.GetAvailableBackends())
+}
