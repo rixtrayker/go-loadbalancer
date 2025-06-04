@@ -26,10 +26,10 @@ func NewTCPProbe(url *url.URL, timeout time.Duration) *TCPProbe {
 
 // Check performs a health check
 func (p *TCPProbe) Check() bool {
-	// Get host and port from URL
+	// Get host and port
 	host := p.url.Host
 
-	// Try to establish a TCP connection
+	// Connect to host
 	conn, err := net.DialTimeout("tcp", host, p.timeout)
 	if err != nil {
 		return false

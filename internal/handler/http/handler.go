@@ -7,10 +7,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rixtrayker/go-loadbalancer/configs"
+	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 	"github.com/rixtrayker/go-loadbalancer/internal/policy"
 	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
-	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
-	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
 // Handler handles HTTP requests
@@ -18,16 +17,16 @@ type Handler struct {
 	router  *mux.Router
 	config  *configs.Config
 	logger  *logging.Logger
-	metrics *metrics.Metrics
+	pools   map[string]*serverpool.Pool
 }
 
 // NewHandler creates a new HTTP handler
-func NewHandler(config *configs.Config, logger *logging.Logger, metrics *metrics.Metrics) *Handler {
+func NewHandler(config *configs.Config, logger *logging.Logger) *Handler {
 	h := &Handler{
 		router:  mux.NewRouter(),
 		config:  config,
 		logger:  logger,
-		metrics: metrics,
+		pools:   make(map[string]*serverpool.Pool),
 	}
 
 	h.setupRoutes()
@@ -36,28 +35,24 @@ func NewHandler(config *configs.Config, logger *logging.Logger, metrics *metrics
 
 // ServeHTTP implements the http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now()
 	h.router.ServeHTTP(w, r)
-	duration := time.Since(start)
-	h.metrics.RecordRequestDuration(r.URL.Path, r.Method, duration)
 }
 
 // setupRoutes configures the HTTP routes
 func (h *Handler) setupRoutes() {
 	// Setup backend pools
-	pools := make(map[string]*serverpool.Pool)
 	for _, poolConfig := range h.config.BackendPools {
 		pool, err := serverpool.NewPool(poolConfig)
 		if err != nil {
 			h.logger.Error("Failed to create backend pool", "name", poolConfig.Name, "error", err)
 			continue
 		}
-		pools[poolConfig.Name] = pool
+		h.pools[poolConfig.Name] = pool
 	}
 
 	// Setup routing rules
 	for _, rule := range h.config.RoutingRules {
-		pool, ok := pools[rule.TargetPool]
+		pool, ok := h.pools[rule.TargetPool]
 		if !ok {
 			h.logger.Error("Target pool not found", "pool", rule.TargetPool)
 			continue
@@ -82,15 +77,34 @@ func (h *Handler) setupRoutes() {
 				return
 			}
 
+			// Start timer for backend response time
+			_ = time.Now()
+
 			// Proxy the request
 			proxy := httputil.NewSingleHostReverseProxy(backend.URL)
 			proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-				h.logger.Error("Proxy error", "error", err)
+				h.logger.Error("Proxy error", "error", err, "backend", backend.URL.String())
 				http.Error(w, "Backend error", http.StatusBadGateway)
 			}
 
-			h.logger.Info("Proxying request", "path", r.URL.Path, "backend", backend.URL.String())
+			// Add X-Forwarded headers
+			director := proxy.Director
+			proxy.Director = func(req *http.Request) {
+				director(req)
+				req.Header.Set("X-Forwarded-Host", r.Host)
+				req.Header.Set("X-Forwarded-Proto", "http")
+			}
+
+			h.logger.Info("Proxying request", 
+				"path", r.URL.Path, 
+				"backend", backend.URL.String(),
+				"pool", pool.Name,
+			)
+			
 			proxy.ServeHTTP(w, r)
+			
+			// Decrement active connections
+			backend.DecrementConnections()
 		}
 
 		// Register route
@@ -111,6 +125,12 @@ func (h *Handler) setupRoutes() {
 		route.HandlerFunc(handler)
 		h.logger.Info("Registered route", "host", rule.Match.Host, "path", rule.Match.Path)
 	}
+
+	// Add health check endpoint
+	h.router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
 
 	// Add catch-all route
 	h.router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

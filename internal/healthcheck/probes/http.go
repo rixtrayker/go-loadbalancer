@@ -38,26 +38,26 @@ func NewHTTPProbe(url *url.URL, path, method string, timeout time.Duration) *HTT
 
 // Check performs a health check
 func (p *HTTPProbe) Check() bool {
-	// Construct health check URL
-	healthURL := *p.url
-	healthURL.Path = p.path
+	// Create request URL
+	reqURL := *p.url
+	reqURL.Path = p.path
 
 	// Create request
-	req, err := http.NewRequest(p.method, healthURL.String(), nil)
+	req, err := http.NewRequest(p.method, reqURL.String(), nil)
 	if err != nil {
 		return false
 	}
 
-	// Add health check headers
-	req.Header.Set("User-Agent", "Go-LoadBalancer-HealthCheck/1.0")
+	// Add health check header
+	req.Header.Set("User-Agent", "Go-LoadBalancer-HealthCheck")
 
-	// Perform request
+	// Send request
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return false
 	}
 	defer resp.Body.Close()
 
-	// Check response status
-	return resp.StatusCode >= 200 && resp.StatusCode < 400
+	// Check status code
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
