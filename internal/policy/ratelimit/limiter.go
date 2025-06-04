@@ -1,165 +1,157 @@
 package ratelimit
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/amr/go-loadbalancer/internal/policy"
 )
 
-// RateLimiter implements rate limiting policy
+// RateLimiter implements rate limiting
 type RateLimiter struct {
-	policy.BasePolicy
-	rate       int
-	window     time.Duration
-	requests   map[string][]time.Time
-	mu         sync.RWMutex
+	limits     map[string]*limit
+	mutex      sync.RWMutex
+	cleanupInt time.Duration
 }
+
+type limit struct {
+	tokens     int
+	lastRefill time.Time
+	rate       int
+	per        time.Duration
+}
+
+var (
+	// Global rate limiter instance
+	globalLimiter = NewRateLimiter()
+)
 
 // NewRateLimiter creates a new rate limiter
-func NewRateLimiter(rate int, window time.Duration) *RateLimiter {
-	return &RateLimiter{
-		BasePolicy: policy.BasePolicy{
-			PolicyName: "rate-limiter",
-		},
-		rate:     rate,
-		window:   window,
-		requests: make(map[string][]time.Time),
+func NewRateLimiter() *RateLimiter {
+	rl := &RateLimiter{
+		limits:     make(map[string]*limit),
+		cleanupInt: 10 * time.Minute,
 	}
+
+	// Start cleanup goroutine
+	go rl.cleanup()
+
+	return rl
 }
 
-// Apply implements the Policy interface
-func (rl *RateLimiter) Apply(req *http.Request, _ *http.Response) error {
-	key := rl.getKey(req)
+// Apply applies rate limiting to a request
+func Apply(rateStr string, r *http.Request) error {
+	// Parse rate limit string (e.g., "100/minute", "10/second")
+	parts := strings.Split(rateStr, "/")
+	if len(parts) != 2 {
+		return errors.New("invalid rate limit format")
+	}
 
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
+	rate, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf("invalid rate: %w", err)
+	}
 
-	now := time.Now()
-	windowStart := now.Add(-rl.window)
+	var per time.Duration
+	switch strings.ToLower(parts[1]) {
+	case "second":
+		per = time.Second
+	case "minute":
+		per = time.Minute
+	case "hour":
+		per = time.Hour
+	default:
+		return errors.New("invalid time unit")
+	}
 
-	// Clean up old requests
-	if requests, exists := rl.requests[key]; exists {
-		var valid []time.Time
-		for _, t := range requests {
-			if t.After(windowStart) {
-				valid = append(valid, t)
-			}
+	// Get client IP as key
+	key := getClientIP(r)
+
+	// Check rate limit
+	return globalLimiter.Allow(key, rate, per)
+}
+
+// Allow checks if a request is allowed based on rate limits
+func (rl *RateLimiter) Allow(key string, rate int, per time.Duration) error {
+	rl.mutex.Lock()
+	defer rl.mutex.Unlock()
+
+	l, exists := rl.limits[key]
+	if !exists {
+		// Create new limit for this key
+		l = &limit{
+			tokens:     rate,
+			lastRefill: time.Now(),
+			rate:       rate,
+			per:        per,
 		}
-		rl.requests[key] = valid
+		rl.limits[key] = l
+	} else {
+		// Refill tokens based on elapsed time
+		now := time.Now()
+		elapsed := now.Sub(l.lastRefill)
+		tokensToAdd := int(float64(elapsed) / float64(per) * float64(rate))
+		
+		if tokensToAdd > 0 {
+			l.tokens = min(l.rate, l.tokens+tokensToAdd)
+			l.lastRefill = now
+		}
 	}
 
-	// Check if rate limit is exceeded
-	if len(rl.requests[key]) >= rl.rate {
-		return ErrRateLimitExceeded
+	// Check if we have tokens available
+	if l.tokens <= 0 {
+		return errors.New("rate limit exceeded")
 	}
 
-	// Add current request
-	rl.requests[key] = append(rl.requests[key], now)
+	// Consume a token
+	l.tokens--
 	return nil
 }
 
-// getKey generates a key for rate limiting
-func (rl *RateLimiter) getKey(req *http.Request) string {
-	// Use IP address as the key
-	return req.RemoteAddr
-}
+// cleanup periodically removes expired limits
+func (rl *RateLimiter) cleanup() {
+	ticker := time.NewTicker(rl.cleanupInt)
+	defer ticker.Stop()
 
-// ErrRateLimitExceeded is returned when rate limit is exceeded
-var ErrRateLimitExceeded = &RateLimitError{}
-
-// RateLimitError represents a rate limit error
-type RateLimitError struct{}
-
-func (e *RateLimitError) Error() string {
-	return "rate limit exceeded"
-}
-
-// Limiter implements a rate limiter using the token bucket algorithm
-type Limiter struct {
-	rate       float64 // tokens per second
-	bucketSize float64
-	tokens     float64
-	lastUpdate time.Time
-	mu         sync.Mutex
-}
-
-// NewLimiter creates a new token bucket limiter
-func NewLimiter(rate, bucketSize float64) *Limiter {
-	return &Limiter{
-		rate:       rate,
-		bucketSize: bucketSize,
-		tokens:     bucketSize,
-		lastUpdate: time.Now(),
+	for range ticker.C {
+		rl.mutex.Lock()
+		now := time.Now()
+		for key, l := range rl.limits {
+			// Remove limits that haven't been used for a while
+			if now.Sub(l.lastRefill) > l.per*2 {
+				delete(rl.limits, key)
+			}
+		}
+		rl.mutex.Unlock()
 	}
 }
 
-// Allow checks if a request is allowed under the rate limit
-func (l *Limiter) Allow() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	now := time.Now()
-	elapsed := now.Sub(l.lastUpdate).Seconds()
-	l.lastUpdate = now
-
-	// Add new tokens based on elapsed time
-	l.tokens = min(l.bucketSize, l.tokens+elapsed*l.rate)
-
-	// Check if we have enough tokens
-	if l.tokens >= 1.0 {
-		l.tokens -= 1.0
-		return true
+// getClientIP extracts the client IP from a request
+func getClientIP(r *http.Request) string {
+	// Try X-Forwarded-For header first
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		ips := strings.Split(xff, ",")
+		if len(ips) > 0 {
+			return strings.TrimSpace(ips[0])
+		}
 	}
 
-	return false
+	// Try X-Real-IP header
+	if xrip := r.Header.Get("X-Real-IP"); xrip != "" {
+		return xrip
+	}
+
+	// Fall back to RemoteAddr
+	return r.RemoteAddr
 }
 
-// min returns the minimum of two float64 values
-func min(a, b float64) float64 {
+// min returns the minimum of two integers
+func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
-}
-
-// TokenBucketLimiter represents a rate limiter for multiple keys using token bucket algorithm
-type TokenBucketLimiter struct {
-	limiters map[string]*Limiter
-	mu       sync.RWMutex
-	rate     float64
-	burst    int
-}
-
-// NewTokenBucketLimiter creates a new token bucket rate limiter for multiple keys
-func NewTokenBucketLimiter(rate float64, burst int) *TokenBucketLimiter {
-	return &TokenBucketLimiter{
-		limiters: make(map[string]*Limiter),
-		rate:     rate,
-		burst:    burst,
-	}
-}
-
-// Allow checks if a request is allowed for the given key
-func (rl *TokenBucketLimiter) Allow(key string) bool {
-	rl.mu.RLock()
-	limiter, exists := rl.limiters[key]
-	rl.mu.RUnlock()
-
-	if !exists {
-		rl.mu.Lock()
-		limiter = NewLimiter(rl.rate, float64(rl.burst))
-		rl.limiters[key] = limiter
-		rl.mu.Unlock()
-	}
-
-	return limiter.Allow()
-}
-
-// Remove removes a rate limiter for a specific key
-func (rl *TokenBucketLimiter) Remove(key string) {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-	delete(rl.limiters, key)
 }

@@ -1,62 +1,87 @@
 package transform
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
-
-	"github.com/amr/go-loadbalancer/internal/policy"
+	"strings"
 )
 
-// Transformer implements request/response transformation policy
-type Transformer struct {
-	policy.BasePolicy
-	headerTransformations map[string]string
-	queryTransformations  map[string]string
-}
+// Apply applies transformation rules to a request
+func Apply(transformStr string, r *http.Request) error {
+	// Parse transform string (e.g., "add-header:X-Forwarded-Host:example.com,remove-header:Referer")
+	rules := strings.Split(transformStr, ",")
 
-// NewTransformer creates a new transformer
-func NewTransformer() *Transformer {
-	return &Transformer{
-		BasePolicy: policy.BasePolicy{
-			PolicyName: "transformer",
-		},
-		headerTransformations: make(map[string]string),
-		queryTransformations:  make(map[string]string),
-	}
-}
+	for _, rule := range rules {
+		parts := strings.SplitN(rule, ":", 3)
+		if len(parts) < 2 {
+			continue
+		}
 
-// Apply implements the Policy interface
-func (t *Transformer) Apply(req *http.Request, resp *http.Response) error {
-	// Transform headers
-	for key, value := range t.headerTransformations {
-		req.Header.Set(key, value)
+		action := strings.ToLower(parts[0])
+		
+		switch action {
+		case "add-header":
+			if len(parts) != 3 {
+				return errors.New("invalid add-header format")
+			}
+			r.Header.Add(parts[1], parts[2])
+			
+		case "set-header":
+			if len(parts) != 3 {
+				return errors.New("invalid set-header format")
+			}
+			r.Header.Set(parts[1], parts[2])
+			
+		case "remove-header":
+			r.Header.Del(parts[1])
+			
+		case "rewrite-path":
+			if len(parts) != 3 {
+				return errors.New("invalid rewrite-path format")
+			}
+			r.URL.Path = strings.Replace(r.URL.Path, parts[1], parts[2], 1)
+			
+		case "add-query":
+			if len(parts) != 3 {
+				return errors.New("invalid add-query format")
+			}
+			q := r.URL.Query()
+			q.Add(parts[1], parts[2])
+			r.URL.RawQuery = q.Encode()
+			
+		default:
+			return errors.New("unknown transform action: " + action)
+		}
 	}
-
-	// Transform query parameters
-	q := req.URL.Query()
-	for key, value := range t.queryTransformations {
-		q.Set(key, value)
-	}
-	req.URL.RawQuery = q.Encode()
 
 	return nil
 }
 
-// AddHeaderTransformation adds a header transformation
-func (t *Transformer) AddHeaderTransformation(key, value string) {
-	t.headerTransformations[key] = value
+// HeaderTransformer transforms HTTP headers
+type HeaderTransformer struct {
+	AddHeaders    map[string]string `json:"add_headers"`
+	RemoveHeaders []string          `json:"remove_headers"`
 }
 
-// RemoveHeaderTransformation removes a header transformation
-func (t *Transformer) RemoveHeaderTransformation(key string) {
-	delete(t.headerTransformations, key)
+// NewHeaderTransformer creates a new header transformer from JSON
+func NewHeaderTransformer(jsonStr string) (*HeaderTransformer, error) {
+	var ht HeaderTransformer
+	if err := json.Unmarshal([]byte(jsonStr), &ht); err != nil {
+		return nil, err
+	}
+	return &ht, nil
 }
 
-// AddQueryTransformation adds a query parameter transformation
-func (t *Transformer) AddQueryTransformation(key, value string) {
-	t.queryTransformations[key] = value
-}
+// Apply applies header transformations to a request
+func (ht *HeaderTransformer) Apply(r *http.Request) {
+	// Add headers
+	for name, value := range ht.AddHeaders {
+		r.Header.Add(name, value)
+	}
 
-// RemoveQueryTransformation removes a query parameter transformation
-func (t *Transformer) RemoveQueryTransformation(key string) {
-	delete(t.queryTransformations, key)
+	// Remove headers
+	for _, name := range ht.RemoveHeaders {
+		r.Header.Del(name)
+	}
 }
