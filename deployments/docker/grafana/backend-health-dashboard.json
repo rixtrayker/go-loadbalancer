@@ -1,0 +1,151 @@
+{
+    "dashboard": {
+        "id": 2,
+        "title": "Backend Health Monitoring",
+        "tags": [
+            "loadbalancer",
+            "backends",
+            "health"
+        ],
+        "timezone": "browser",
+        "panels": [
+            {
+                "id": 1,
+                "title": "Backend Status Overview",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "count by (backend) (up{job=\"backend\"})",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": 0
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 1
+                                }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": {
+                    "h": 6,
+                    "w": 8,
+                    "x": 0,
+                    "y": 0
+                }
+            },
+            {
+                "id": 2,
+                "title": "Backend Response Times",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.95, rate(backend_request_duration_seconds_bucket[5m]))",
+                        "refId": "A",
+                        "legendFormat": "{{backend}} - 95th percentile"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.50, rate(backend_request_duration_seconds_bucket[5m]))",
+                        "refId": "B",
+                        "legendFormat": "{{backend}} - 50th percentile"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 8,
+                    "y": 0
+                }
+            },
+            {
+                "id": 3,
+                "title": "Active Connections per Backend",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "backend_active_connections",
+                        "refId": "A",
+                        "legendFormat": "{{backend}}"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 8
+                }
+            },
+            {
+                "id": 4,
+                "title": "Backend Error Rates",
+                "type": "graph",
+                "targets": [
+                    {
+                        "expr": "rate(backend_requests_total{status=~\"5..\"}[5m]) / rate(backend_requests_total[5m])",
+                        "refId": "A",
+                        "legendFormat": "{{backend}}"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 8
+                }
+            },
+            {
+                "id": 5,
+                "title": "Health Check Status",
+                "type": "table",
+                "targets": [
+                    {
+                        "expr": "backend_health_check_success",
+                        "refId": "A",
+                        "format": "table",
+                        "instant": true
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 0,
+                    "y": 16
+                }
+            },
+            {
+                "id": 6,
+                "title": "Backend Load Distribution",
+                "type": "piechart",
+                "targets": [
+                    {
+                        "expr": "rate(backend_requests_total[5m])",
+                        "refId": "A",
+                        "legendFormat": "{{backend}}"
+                    }
+                ],
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 8,
+                    "y": 16
+                }
+            }
+        ],
+        "time": {
+            "from": "now-1h",
+            "to": "now"
+        },
+        "refresh": "5s"
+    }
+}

@@ -1,0 +1,53 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alert_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  # Load Balancer metrics
+  - job_name: 'loadbalancer'
+    static_configs:
+      - targets: ['loadbalancer:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+  # Backend services
+  - job_name: 'backend1'
+    static_configs:
+      - targets: ['backend1:80']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  - job_name: 'backend2'
+    static_configs:
+      - targets: ['backend2:80']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # K6 metrics (if using Prometheus output)
+  - job_name: 'k6'
+    static_configs:
+      - targets: ['k6:6565']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+  # Docker host metrics (if node_exporter is added)
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node_exporter:9100'] 
