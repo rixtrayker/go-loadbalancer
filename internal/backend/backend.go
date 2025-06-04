@@ -179,4 +179,4 @@ func (b *Backend) CheckCircuitBreaker() {
 			b.CircuitBreaker.State = HalfOpen
 		}
 	}
-} 
+}

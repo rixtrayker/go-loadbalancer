@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics"
@@ -16,7 +17,7 @@ type Span struct {
 	EndTime   time.Time
 	Tags      map[string]string
 	Events    []Event
-	jaegerSpan jaeger.Span
+	jaegerSpan opentracing.Span
 }
 
 // Event represents a span event
@@ -40,7 +41,7 @@ type Tracer interface {
 
 // JaegerTracer implements the Tracer interface using Jaeger
 type JaegerTracer struct {
-	tracer jaeger.Tracer
+	tracer opentracing.Tracer
 }
 
 // NewJaegerTracer creates a new Jaeger tracer
@@ -72,7 +73,7 @@ func NewJaegerTracer(serviceName string) (*JaegerTracer, error) {
 // StartSpan implements the Tracer interface
 func (t *JaegerTracer) StartSpan(ctx context.Context, name string) (context.Context, Span) {
 	jaegerSpan := t.tracer.StartSpan(name)
-	ctx = jaeger.ContextWithSpan(ctx, jaegerSpan)
+	ctx = opentracing.ContextWithSpan(ctx, jaegerSpan)
 
 	return ctx, Span{
 		Name:      name,
@@ -146,4 +147,4 @@ func (t *NoopTracer) AddTag(span *Span, key, value string) {
 // NewNoopTracer creates a new no-op tracer
 func NewNoopTracer() *NoopTracer {
 	return &NoopTracer{}
-} 
+}

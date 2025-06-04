@@ -59,6 +59,26 @@ func NewLogger(config Config) (*zap.Logger, error) {
 
 // DefaultLogger creates a logger with default configuration
 func DefaultLogger() *zap.Logger {
+	config := Config{
+		Level:  "info",
+		Format: "json",
+	}
+	logger, err := NewLogger(config)
+	if err != nil {
+		// If there's an error creating the custom logger, fall back to production logger
+		logger, _ = zap.NewProduction()
+	}
+	return logger
+}
+
+// NewDevelopmentLogger creates a logger suitable for development
+func NewDevelopmentLogger() *zap.Logger {
+	logger, _ := zap.NewDevelopment()
+	return logger
+}
+
+// NewProductionLogger creates a logger suitable for production
+func NewProductionLogger() *zap.Logger {
 	logger, _ := zap.NewProduction()
 	return logger
 } 
