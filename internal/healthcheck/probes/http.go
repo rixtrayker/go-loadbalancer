@@ -1,58 +1,63 @@
 package probes
 
 import (
-	"context"
 	"net/http"
+	"net/url"
 	"time"
 )
 
-// HTTPProbe represents an HTTP health check probe
+// HTTPProbe checks backend health using HTTP
 type HTTPProbe struct {
-	client      *http.Client
-	path        string
-	expectedStatus int
+	url     *url.URL
+	path    string
+	method  string
+	timeout time.Duration
+	client  *http.Client
 }
 
-// NewHTTPProbe creates a new HTTP probe
-func NewHTTPProbe(timeout time.Duration, path string, expectedStatus int) *HTTPProbe {
+// NewHTTPProbe creates a new HTTP health check probe
+func NewHTTPProbe(url *url.URL, path, method string, timeout time.Duration) *HTTPProbe {
+	if method == "" {
+		method = http.MethodGet
+	}
+
+	if timeout == 0 {
+		timeout = 5 * time.Second
+	}
+
 	return &HTTPProbe{
+		url:     url,
+		path:    path,
+		method:  method,
+		timeout: timeout,
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		path: path,
-		expectedStatus: expectedStatus,
 	}
 }
 
-// Check performs an HTTP health check
-func (p *HTTPProbe) Check(ctx context.Context, url string) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url+p.path, nil)
+// Check performs a health check
+func (p *HTTPProbe) Check() bool {
+	// Construct health check URL
+	healthURL := *p.url
+	healthURL.Path = p.path
+
+	// Create request
+	req, err := http.NewRequest(p.method, healthURL.String(), nil)
 	if err != nil {
-		return false, err
+		return false
 	}
 
+	// Add health check headers
+	req.Header.Set("User-Agent", "Go-LoadBalancer-HealthCheck/1.0")
+
+	// Perform request
 	resp, err := p.client.Do(req)
 	if err != nil {
-		return false, err
+		return false
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
-	return resp.StatusCode == p.expectedStatus, nil
+	// Check response status
+	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
-
-// SetTimeout updates the probe's timeout
-func (p *HTTPProbe) SetTimeout(timeout time.Duration) {
-	p.client.Timeout = timeout
-}
-
-// SetPath updates the health check path
-func (p *HTTPProbe) SetPath(path string) {
-	p.path = path
-}
-
-// SetExpectedStatus updates the expected HTTP status code
-func (p *HTTPProbe) SetExpectedStatus(status int) {
-	p.expectedStatus = status
-} 

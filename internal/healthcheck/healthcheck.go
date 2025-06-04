@@ -2,127 +2,99 @@ package healthcheck
 
 import (
 	"context"
-	"log"
-	"sync"
 	"time"
 
-	"github.com/amr/go-loadbalancer/internal/backend"
+	"github.com/rixtrayker/go-loadbalancer/configs"
+	"github.com/rixtrayker/go-loadbalancer/internal/healthcheck/probes"
+	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
+	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
 )
 
-// HealthChecker manages health checks for backends
+// HealthChecker monitors backend health
 type HealthChecker struct {
-	backends    []*backend.Backend
-	interval    time.Duration
-	timeout     time.Duration
-	stopChan    chan struct{}
-	probeType   string
-	mu          sync.RWMutex
+	pools      map[string]*serverpool.Pool
+	configs    map[string]configs.HealthCheckConfig
+	probes     map[string]probes.Probe
+	logger     *logging.Logger
+	stopCh     chan struct{}
+	cancelFunc context.CancelFunc
 }
 
-// NewHealthChecker creates a new health checker instance
-func NewHealthChecker(interval, timeout time.Duration, probeType string) *HealthChecker {
+// NewHealthChecker creates a new health checker
+func NewHealthChecker(
+	pools map[string]*serverpool.Pool,
+	configs map[string]configs.HealthCheckConfig,
+	logger *logging.Logger,
+) *HealthChecker {
 	return &HealthChecker{
-		interval:  interval,
-		timeout:   timeout,
-		stopChan:  make(chan struct{}),
-		probeType: probeType,
+		pools:   pools,
+		configs: configs,
+		probes:  make(map[string]probes.Probe),
+		logger:  logger,
+		stopCh:  make(chan struct{}),
 	}
 }
 
-// AddBackend adds a backend to be health checked
-func (hc *HealthChecker) AddBackend(b *backend.Backend) {
-	hc.mu.Lock()
-	defer hc.mu.Unlock()
-	hc.backends = append(hc.backends, b)
-}
+// Start begins health checking
+func (hc *HealthChecker) Start(ctx context.Context) {
+	ctx, hc.cancelFunc = context.WithCancel(ctx)
 
-// RemoveBackend removes a backend from health checking
-func (hc *HealthChecker) RemoveBackend(urlStr string) {
-	hc.mu.Lock()
-	defer hc.mu.Unlock()
-	
-	for i, b := range hc.backends {
-		if b.URL.String() == urlStr {
-			hc.backends = append(hc.backends[:i], hc.backends[i+1:]...)
-			return
+	// Create probes for each backend
+	for poolName, pool := range hc.pools {
+		config, ok := hc.configs[poolName]
+		if !ok {
+			hc.logger.Warn("No health check config for pool", "pool", poolName)
+			continue
+		}
+
+		for _, backend := range pool.Backends {
+			var probe probes.Probe
+			switch {
+			case config.Path != "":
+				probe = probes.NewHTTPProbe(backend.URL, config.Path, config.Method, config.Timeout)
+			default:
+				probe = probes.NewTCPProbe(backend.URL, config.Timeout)
+			}
+
+			backendURL := backend.URL.String()
+			hc.probes[backendURL] = probe
+
+			// Start health check for this backend
+			go hc.checkBackend(ctx, pool, backend.URL.String(), config.Interval)
 		}
 	}
 }
 
-// Start begins the health checking process
-func (hc *HealthChecker) Start() {
-	ticker := time.NewTicker(hc.interval)
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				hc.checkAllBackends()
-			case <-hc.stopChan:
-				ticker.Stop()
-				return
+// Stop stops health checking
+func (hc *HealthChecker) Stop() {
+	if hc.cancelFunc != nil {
+		hc.cancelFunc()
+	}
+	close(hc.stopCh)
+}
+
+// checkBackend periodically checks a backend's health
+func (hc *HealthChecker) checkBackend(ctx context.Context, pool *serverpool.Pool, backendURL string, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	probe, ok := hc.probes[backendURL]
+	if !ok {
+		hc.logger.Error("No probe found for backend", "backend", backendURL)
+		return
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			healthy := probe.Check()
+			pool.MarkBackendStatus(backendURL, healthy)
+
+			if !healthy {
+				hc.logger.Warn("Backend is unhealthy", "backend", backendURL)
 			}
 		}
-	}()
-}
-
-// Stop stops the health checking process
-func (hc *HealthChecker) Stop() {
-	close(hc.stopChan)
-}
-
-// checkAllBackends performs health checks on all registered backends
-func (hc *HealthChecker) checkAllBackends() {
-	hc.mu.RLock()
-	backends := make([]*backend.Backend, len(hc.backends))
-	copy(backends, hc.backends)
-	hc.mu.RUnlock()
-
-	for _, b := range backends {
-		go hc.checkBackend(b)
 	}
-}
-
-// checkBackend performs a health check on a single backend
-func (hc *HealthChecker) checkBackend(b *backend.Backend) {
-	ctx, cancel := context.WithTimeout(context.Background(), hc.timeout)
-	defer cancel()
-
-	var healthy bool
-	var err error
-
-	switch hc.probeType {
-	case "http":
-		healthy, err = checkHTTP(ctx, b.URL.String())
-	case "tcp":
-		healthy, err = checkTCP(ctx, b.URL.String())
-	default:
-		healthy, err = checkHTTP(ctx, b.URL.String())
-	}
-
-	if err != nil || !healthy {
-		b.Healthy = false
-		b.RecordFailure()
-	} else {
-		b.Healthy = true
-		b.RecordSuccess()
-	}
-	b.LastCheck = time.Now()
-}
-
-// checkHTTP performs an HTTP health check
-func checkHTTP(ctx context.Context, url string) (bool, error) {
-	// TODO: Implement actual HTTP health check logic
-	// This could involve making an HTTP request and checking the response
-	// For now, we'll just log that we're checking
-	log.Printf("Checking health of backend %s via HTTP", url)
-	return true, nil
-}
-
-// checkTCP performs a TCP health check
-func checkTCP(ctx context.Context, url string) (bool, error) {
-	// TODO: Implement actual TCP health check logic
-	// This could involve establishing a TCP connection and checking if it's open
-	// For now, we'll just log that we're checking
-	log.Printf("Checking health of backend %s via TCP", url)
-	return true, nil
 }
