@@ -226,6 +226,26 @@ We welcome contributions! Here's how you can help:
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
+### What does this mean?
+
+The MIT License is a permissive license that is short and to the point. It lets people do anything they want with your code as long as they provide attribution back to you and don't hold you liable.
+
+**You are free to:**
+- ✅ Use this code commercially
+- ✅ Modify the code
+- ✅ Distribute the code
+- ✅ Use it privately
+- ✅ Sublicense it
+
+**Under the following conditions:**
+- ℹ️ Include the original copyright notice
+- ℹ️ Include the license text
+
+**No liability:**
+- 🛡️ The software is provided "as is", without warranty of any kind
+
+For more information, please refer to the [LICENSE](LICENSE) file in this repository.
+
 ---
 
 ## 🙏 Acknowledgments
