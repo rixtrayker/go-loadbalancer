@@ -36,7 +36,7 @@
           version = "0.1.0";
           src = ./.;
 
-          vendorHash = null;
+          vendorHash = "sha256-0000000000000000000000000000000000000000000000000000";  # This will be replaced by nix
 
           meta = with pkgs.lib; {
             description = "A Go-based load balancer";
@@ -46,4 +46,15 @@
           };
         };
       });
+
+  nixConfig = {
+    extra-substituters = [
+      "https://cache.nixos.org"
+      "https://nix-community.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+    ];
+  };
 } 
