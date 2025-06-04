@@ -1,106 +1,120 @@
 package http
 
 import (
-	"io"
 	"net/http"
+	"net/http/httputil"
 	"time"
 
-	"github.com/amr/go-loadbalancer/internal/policy"
-	"github.com/amr/go-loadbalancer/internal/routing"
-	"go.uber.org/zap"
+	"github.com/gorilla/mux"
+	"github.com/rixtrayker/go-loadbalancer/configs"
+	"github.com/rixtrayker/go-loadbalancer/internal/policy"
+	"github.com/rixtrayker/go-loadbalancer/internal/serverpool"
+	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
+	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
-// Handler implements the HTTP handler for the load balancer
+// Handler handles HTTP requests
 type Handler struct {
-	router      *routing.Router
-	policyChain *policy.PolicyChain
-	logger      *zap.Logger
-	client      *http.Client
+	router  *mux.Router
+	config  *configs.Config
+	logger  *logging.Logger
+	metrics *metrics.Metrics
 }
 
 // NewHandler creates a new HTTP handler
-func NewHandler(router *routing.Router, policyChain *policy.PolicyChain, logger *zap.Logger) *Handler {
-	return &Handler{
-		router:      router,
-		policyChain: policyChain,
-		logger:      logger,
-		client: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+func NewHandler(config *configs.Config, logger *logging.Logger, metrics *metrics.Metrics) *Handler {
+	h := &Handler{
+		router:  mux.NewRouter(),
+		config:  config,
+		logger:  logger,
+		metrics: metrics,
 	}
+
+	h.setupRoutes()
+	return h
 }
 
 // ServeHTTP implements the http.Handler interface
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Apply request policies
-	if err := h.policyChain.Apply(r, nil); err != nil {
-		h.logger.Error("Policy application failed", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	start := time.Now()
+	h.router.ServeHTTP(w, r)
+	duration := time.Since(start)
+	h.metrics.RecordRequestDuration(r.URL.Path, r.Method, duration)
+}
 
-	// Route request to backend
-	backend := h.router.RouteRequest(r)
-	if backend == nil {
-		h.logger.Error("No available backend")
-		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
-		return
-	}
-
-	// Create proxy request
-	backendURL := backend.URL.String()
-	proxyReq, err := http.NewRequest(r.Method, backendURL+r.URL.Path, r.Body)
-	if err != nil {
-		h.logger.Error("Failed to create proxy request", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Copy headers
-	for key, values := range r.Header {
-		for _, value := range values {
-			proxyReq.Header.Add(key, value)
+// setupRoutes configures the HTTP routes
+func (h *Handler) setupRoutes() {
+	// Setup backend pools
+	pools := make(map[string]*serverpool.Pool)
+	for _, poolConfig := range h.config.BackendPools {
+		pool, err := serverpool.NewPool(poolConfig)
+		if err != nil {
+			h.logger.Error("Failed to create backend pool", "name", poolConfig.Name, "error", err)
+			continue
 		}
+		pools[poolConfig.Name] = pool
 	}
 
-	// Forward request to backend
-	backend.IncrementConn()
-	defer backend.DecrementConn()
-
-	resp, err := h.client.Do(proxyReq)
-	if err != nil {
-		h.logger.Error("Failed to forward request", zap.Error(err))
-		backend.RecordFailure()
-		http.Error(w, "Bad Gateway", http.StatusBadGateway)
-		return
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	// Apply response policies
-	if err := h.policyChain.Apply(r, resp); err != nil {
-		h.logger.Error("Response policy application failed", zap.Error(err))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// Copy response headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
+	// Setup routing rules
+	for _, rule := range h.config.RoutingRules {
+		pool, ok := pools[rule.TargetPool]
+		if !ok {
+			h.logger.Error("Target pool not found", "pool", rule.TargetPool)
+			continue
 		}
+
+		// Create route handler
+		handler := func(w http.ResponseWriter, r *http.Request) {
+			// Apply policies
+			for _, policyConfig := range rule.Policies {
+				if err := policy.Apply(policyConfig, r); err != nil {
+					h.logger.Error("Policy application failed", "error", err)
+					http.Error(w, "Policy violation", http.StatusForbidden)
+					return
+				}
+			}
+
+			// Select backend
+			backend, err := pool.NextBackend(r)
+			if err != nil {
+				h.logger.Error("Failed to select backend", "error", err)
+				http.Error(w, "No backend available", http.StatusServiceUnavailable)
+				return
+			}
+
+			// Proxy the request
+			proxy := httputil.NewSingleHostReverseProxy(backend.URL)
+			proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+				h.logger.Error("Proxy error", "error", err)
+				http.Error(w, "Backend error", http.StatusBadGateway)
+			}
+
+			h.logger.Info("Proxying request", "path", r.URL.Path, "backend", backend.URL.String())
+			proxy.ServeHTTP(w, r)
+		}
+
+		// Register route
+		route := h.router.NewRoute()
+		if rule.Match.Host != "" {
+			route = route.Host(rule.Match.Host)
+		}
+		if rule.Match.Path != "" {
+			route = route.Path(rule.Match.Path)
+		}
+		if rule.Match.Method != "" {
+			route = route.Methods(rule.Match.Method)
+		}
+		for k, v := range rule.Match.Headers {
+			route = route.HeadersRegexp(k, v)
+		}
+
+		route.HandlerFunc(handler)
+		h.logger.Info("Registered route", "host", rule.Match.Host, "path", rule.Match.Path)
 	}
 
-	// Set response status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Copy response body
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		h.logger.Error("Failed to copy response body", zap.Error(err))
-		return
-	}
-
-	// Record success
-	backend.RecordSuccess()
+	// Add catch-all route
+	h.router.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.logger.Info("No matching route", "path", r.URL.Path)
+		http.Error(w, "No matching route", http.StatusNotFound)
+	})
 }
