@@ -21,7 +21,7 @@ type RateLimiter struct {
 func NewRateLimiter(rate int, window time.Duration) *RateLimiter {
 	return &RateLimiter{
 		BasePolicy: policy.BasePolicy{
-			name: "rate-limiter",
+			PolicyName: "rate-limiter",
 		},
 		rate:     rate,
 		window:   window,
@@ -85,7 +85,7 @@ type Limiter struct {
 	mu         sync.Mutex
 }
 
-// NewLimiter creates a new rate limiter
+// NewLimiter creates a new token bucket limiter
 func NewLimiter(rate, bucketSize float64) *Limiter {
 	return &Limiter{
 		rate:       rate,
@@ -124,17 +124,17 @@ func min(a, b float64) float64 {
 	return b
 }
 
-// RateLimiter represents a rate limiter for a specific key
-type RateLimiter struct {
+// TokenBucketLimiter represents a rate limiter for multiple keys using token bucket algorithm
+type TokenBucketLimiter struct {
 	limiters map[string]*Limiter
 	mu       sync.RWMutex
 	rate     float64
-	burst    float64
+	burst    int
 }
 
-// NewRateLimiter creates a new rate limiter for multiple keys
-func NewRateLimiter(rate, burst float64) *RateLimiter {
-	return &RateLimiter{
+// NewTokenBucketLimiter creates a new token bucket rate limiter for multiple keys
+func NewTokenBucketLimiter(rate float64, burst int) *TokenBucketLimiter {
+	return &TokenBucketLimiter{
 		limiters: make(map[string]*Limiter),
 		rate:     rate,
 		burst:    burst,
@@ -142,14 +142,14 @@ func NewRateLimiter(rate, burst float64) *RateLimiter {
 }
 
 // Allow checks if a request is allowed for the given key
-func (rl *RateLimiter) Allow(key string) bool {
+func (rl *TokenBucketLimiter) Allow(key string) bool {
 	rl.mu.RLock()
 	limiter, exists := rl.limiters[key]
 	rl.mu.RUnlock()
 
 	if !exists {
 		rl.mu.Lock()
-		limiter = NewLimiter(rl.rate, rl.burst)
+		limiter = NewLimiter(rl.rate, float64(rl.burst))
 		rl.limiters[key] = limiter
 		rl.mu.Unlock()
 	}
@@ -158,8 +158,8 @@ func (rl *RateLimiter) Allow(key string) bool {
 }
 
 // Remove removes a rate limiter for a specific key
-func (rl *RateLimiter) Remove(key string) {
+func (rl *TokenBucketLimiter) Remove(key string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 	delete(rl.limiters, key)
-} 
+}

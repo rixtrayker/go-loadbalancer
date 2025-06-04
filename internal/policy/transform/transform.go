@@ -17,7 +17,7 @@ type Transformer struct {
 func NewTransformer() *Transformer {
 	return &Transformer{
 		BasePolicy: policy.BasePolicy{
-			name: "transformer",
+			PolicyName: "transformer",
 		},
 		headerTransformations: make(map[string]string),
 		queryTransformations:  make(map[string]string),
@@ -59,4 +59,4 @@ func (t *Transformer) AddQueryTransformation(key, value string) {
 // RemoveQueryTransformation removes a query parameter transformation
 func (t *Transformer) RemoveQueryTransformation(key string) {
 	delete(t.queryTransformations, key)
-} 
+}

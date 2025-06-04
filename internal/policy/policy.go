@@ -14,12 +14,12 @@ type Policy interface {
 
 // BasePolicy provides common functionality for policies
 type BasePolicy struct {
-	name string
+	PolicyName string
 }
 
 // Name returns the name of the policy
 func (b *BasePolicy) Name() string {
-	return b.name
+	return b.PolicyName
 }
 
 // PolicyChain represents a chain of policies to be applied
@@ -57,4 +57,4 @@ func (pc *PolicyChain) Apply(req *http.Request, resp *http.Response) error {
 		}
 	}
 	return nil
-} 
+}

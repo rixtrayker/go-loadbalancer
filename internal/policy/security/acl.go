@@ -20,7 +20,7 @@ type ACL struct {
 func NewACL() *ACL {
 	return &ACL{
 		BasePolicy: policy.BasePolicy{
-			name: "acl",
+			PolicyName: "acl",
 		},
 		allowedIPs:    make([]*net.IPNet, 0),
 		blockedIPs:    make([]*net.IPNet, 0),
@@ -65,8 +65,8 @@ func (a *ACL) Apply(req *http.Request, _ *http.Response) error {
 	// If allowed IPs are specified, check if IP is allowed
 	if len(a.allowedIPs) > 0 {
 		allowed := false
-		for _, allowed := range a.allowedIPs {
-			if allowed.Contains(parsedIP) {
+		for _, allowedIP := range a.allowedIPs {
+			if allowedIP.Contains(parsedIP) {
 				allowed = true
 				break
 			}
@@ -88,8 +88,8 @@ func (a *ACL) Apply(req *http.Request, _ *http.Response) error {
 
 	if len(a.allowedHosts) > 0 {
 		allowed := false
-		for _, allowed := range a.allowedHosts {
-			if host == allowed {
+		for _, allowedHost := range a.allowedHosts {
+			if host == allowedHost {
 				allowed = true
 				break
 			}
@@ -145,4 +145,4 @@ type ACLError struct {
 
 func (e *ACLError) Error() string {
 	return e.msg
-} 
+}
