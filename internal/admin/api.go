@@ -7,17 +7,17 @@ import (
 	"github.com/amr/go-loadbalancer/internal/backend"
 	"github.com/amr/go-loadbalancer/internal/serverpool"
 	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // API implements the admin API
 type API struct {
 	pool   *serverpool.Pool
-	logger *logrus.Logger
+	logger *zap.Logger
 }
 
 // NewAPI creates a new admin API
-func NewAPI(pool *serverpool.Pool, logger *logrus.Logger) *API {
+func NewAPI(pool *serverpool.Pool, logger *zap.Logger) *API {
 	return &API{
 		pool:   pool,
 		logger: logger,
@@ -35,13 +35,18 @@ func (a *API) RegisterRoutes(r *mux.Router) {
 // listBackends returns a list of all backends
 func (a *API) listBackends(w http.ResponseWriter, r *http.Request) {
 	backends := a.pool.GetBackends()
-	json.NewEncoder(w).Encode(backends)
+	if err := json.NewEncoder(w).Encode(backends); err != nil {
+		a.logger.Error("Failed to encode backends", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // addBackend adds a new backend
 func (a *API) addBackend(w http.ResponseWriter, r *http.Request) {
 	var b backend.Backend
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
+		a.logger.Error("Failed to decode backend", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -71,5 +76,9 @@ func (a *API) healthCheck(w http.ResponseWriter, r *http.Request) {
 		Available: len(a.pool.GetAvailableBackends()),
 	}
 
-	json.NewEncoder(w).Encode(status)
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		a.logger.Error("Failed to encode health status", zap.Error(err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 } 

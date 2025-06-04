@@ -7,19 +7,19 @@ import (
 
 	"github.com/amr/go-loadbalancer/internal/policy"
 	"github.com/amr/go-loadbalancer/internal/routing"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // Handler implements the HTTP handler for the load balancer
 type Handler struct {
 	router      *routing.Router
 	policyChain *policy.PolicyChain
-	logger      *logrus.Logger
+	logger      *zap.Logger
 	client      *http.Client
 }
 
 // NewHandler creates a new HTTP handler
-func NewHandler(router *routing.Router, policyChain *policy.PolicyChain, logger *logrus.Logger) *Handler {
+func NewHandler(router *routing.Router, policyChain *policy.PolicyChain, logger *zap.Logger) *Handler {
 	return &Handler{
 		router:      router,
 		policyChain: policyChain,
@@ -34,7 +34,7 @@ func NewHandler(router *routing.Router, policyChain *policy.PolicyChain, logger 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Apply request policies
 	if err := h.policyChain.Apply(r, nil); err != nil {
-		h.logger.WithError(err).Error("Policy application failed")
+		h.logger.Error("Policy application failed", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -48,9 +48,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create proxy request
-	proxyReq, err := http.NewRequest(r.Method, backend.URL+r.URL.Path, r.Body)
+	backendURL := backend.URL.String()
+	proxyReq, err := http.NewRequest(r.Method, backendURL+r.URL.Path, r.Body)
 	if err != nil {
-		h.logger.WithError(err).Error("Failed to create proxy request")
+		h.logger.Error("Failed to create proxy request", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -68,7 +69,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.client.Do(proxyReq)
 	if err != nil {
-		h.logger.WithError(err).Error("Failed to forward request")
+		h.logger.Error("Failed to forward request", zap.Error(err))
 		backend.RecordFailure()
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
@@ -77,7 +78,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Apply response policies
 	if err := h.policyChain.Apply(r, resp); err != nil {
-		h.logger.WithError(err).Error("Response policy application failed")
+		h.logger.Error("Response policy application failed", zap.Error(err))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -94,10 +95,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Copy response body
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		h.logger.WithError(err).Error("Failed to copy response body")
+		h.logger.Error("Failed to copy response body", zap.Error(err))
 		return
 	}
 
 	// Record success
 	backend.RecordSuccess()
-} 
+}
