@@ -11,7 +11,6 @@ import (
 type Pool struct {
 	backends  []*backend.Backend
 	algorithm algorithms.Algorithm
-	current  uint64
 	mu       sync.RWMutex
 }
 

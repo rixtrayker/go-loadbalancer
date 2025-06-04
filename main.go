@@ -21,7 +21,9 @@ func main() {
 
 	// Initialize logger
 	logger := logging.DefaultLogger()
-	defer logger.Sync()
+	defer func() {
+		_ = logger.Sync()
+	}()
 
 	// Load configuration
 	configLoader := config.NewLoader(*configFile)

@@ -2,6 +2,7 @@ package app
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/amr/go-loadbalancer/config"
@@ -99,7 +100,9 @@ func New(cfg *config.Config) (*App, error) {
 	// Add security policy
 	acl := security.NewACL()
 	if len(cfg.Policies.Security.AllowedIPs) > 0 {
-		acl.SetAllowedIPs(cfg.Policies.Security.AllowedIPs)
+		if err := acl.SetAllowedIPs(cfg.Policies.Security.AllowedIPs); err != nil {
+			logger.Warn("Failed to set allowed IPs", zap.Error(err))
+		}
 	}
 	policyChain.AddPolicy(acl)
 
@@ -134,7 +137,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// Create server with configured timeouts
 	server := &http.Server{
-		Addr:         cfg.Server.Host + ":" + string(cfg.Server.Port),
+		Addr:         cfg.Server.Host + ":" + strconv.Itoa(cfg.Server.Port),
 		Handler:      r,
 		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
 		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,

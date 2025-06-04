@@ -35,7 +35,9 @@ func (p *HTTPProbe) Check(ctx context.Context, url string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	return resp.StatusCode == p.expectedStatus, nil
 }
