@@ -35,7 +35,7 @@
           pname = "go-loadbalancer";
           version = "0.1.0";
           src = ./.;
-          vendorHash = self.inputs.flake-utils.lib.flakeVendorHash ./.;
+          vendorHash = null; # Use null for projects without vendor dependencies, or calculate the hash
 
           meta = with pkgs.lib; {
             description = "A Go-based load balancer";
@@ -43,6 +43,19 @@
             license = licenses.mit;
             maintainers = with maintainers; [ ];
           };
+        };
+
+        # Add checks for testing
+        checks = {
+          tests = pkgs.runCommand "go-tests" {
+            buildInputs = [ pkgs.go_1_24 ];
+            src = ./.;
+          } ''
+            cd $src
+            export HOME=$TMPDIR
+            go test -v ./...
+            touch $out
+          '';
         };
       });
 
@@ -56,4 +69,4 @@
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
-} 
+}
