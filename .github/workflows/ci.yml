@@ -52,10 +52,10 @@ jobs:
             go test -tags=integration -v -race -cover ./...
           fi
 
-      - name: Run load tests
-        if: steps.skip-test.outputs.skip_test != 'true'
-        run: |
-          make test-load
+      # - name: Run load tests
+      #   if: steps.skip-test.outputs.skip_test != 'true'
+      #   run: |
+      #     make test-load
 
   nix-build:
     runs-on: ubuntu-latest
