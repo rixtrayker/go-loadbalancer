@@ -2,6 +2,10 @@ server:
   address: ":8080"
   admin_enable: true
   admin_path: "/admin"
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 60
+  cors_enabled: true
   
 backend_pools:
   - name: "web-servers"
@@ -27,3 +31,33 @@ routing_rules:
       path: "/*"
     target_pool: "web-servers"
     policies: []
+
+monitoring:
+  prometheus:
+    enabled: true
+    path: "/metrics"
+    port: 9090
+  tracing:
+    enabled: true
+    service_name: "go-loadbalancer"
+    service_version: "1.0.0"
+    environment: "development"
+    endpoint: "localhost:4317"
+    sampling_rate: 1.0
+    protocol: "grpc"
+    secure: false
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+    include_trace_id: true
+    include_span_id: true
+  metrics:
+    retention_period: "24h"
+    aggregation_interval: "1m"
+    max_series: 10000
+  alerts:
+    error_rate_threshold: 0.05
+    latency_threshold: 0.5
+    health_check_failures: 3
+    resource_usage_threshold: 0.8

@@ -1,0 +1,35 @@
+monitoring:
+  # Prometheus metrics configuration
+  prometheus:
+    enabled: true
+    path: /metrics
+    port: 9090
+
+  # OpenTelemetry tracing configuration
+  tracing:
+    enabled: true
+    service_name: "go-loadbalancer"
+    service_version: "1.0.0"
+    environment: "development"
+    endpoint: "localhost:4317"  # OTLP gRPC endpoint
+    sampling_rate: 1.0  # 1.0 means sample all traces
+
+  # Logging configuration
+  logging:
+    level: "info"
+    format: "json"
+    output: "stdout"
+    include_trace_id: true
+    include_span_id: true
+
+  # Metrics retention and aggregation
+  metrics:
+    retention_period: "15d"
+    aggregation_interval: "1m"
+    max_series: 1000000
+
+  # Alerting thresholds
+  alerts:
+    error_rate_threshold: 0.01  # 1% error rate
+    latency_threshold_ms: 1000  # 1 second
+    backend_health_threshold: 0.8  # 80% healthy backends 
