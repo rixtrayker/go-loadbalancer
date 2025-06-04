@@ -3,82 +3,91 @@ package logging
 import (
 	"os"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/sirupsen/logrus"
 )
 
-// Config represents logging configuration
-type Config struct {
-	Level      string
-	Format     string
-	OutputFile string
+// Logger wraps the underlying logging implementation
+type Logger struct {
+	logger *logrus.Logger
 }
 
-// NewLogger creates a new logger with the given configuration
-func NewLogger(config Config) (*zap.Logger, error) {
-	var level zapcore.Level
-	if err := level.UnmarshalText([]byte(config.Level)); err != nil {
-		return nil, err
+// NewLogger creates a new logger instance
+func NewLogger() *Logger {
+	log := logrus.New()
+	log.SetOutput(os.Stdout)
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+	})
+
+	// Set log level from environment variable or default to info
+	level := os.Getenv("LOG_LEVEL")
+	switch level {
+	case "debug":
+		log.SetLevel(logrus.DebugLevel)
+	case "warn":
+		log.SetLevel(logrus.WarnLevel)
+	case "error":
+		log.SetLevel(logrus.ErrorLevel)
+	default:
+		log.SetLevel(logrus.InfoLevel)
 	}
 
-	// Create encoder config
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "ts",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "msg",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+	return &Logger{
+		logger: log,
 	}
-
-	// Create core
-	var core zapcore.Core
-	if config.Format == "json" {
-		core = zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderConfig),
-			zapcore.AddSync(os.Stdout),
-			level,
-		)
-	} else {
-		core = zapcore.NewCore(
-			zapcore.NewConsoleEncoder(encoderConfig),
-			zapcore.AddSync(os.Stdout),
-			level,
-		)
-	}
-
-	// Create logger
-	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
-	return logger, nil
 }
 
-// DefaultLogger creates a logger with default configuration
-func DefaultLogger() *zap.Logger {
-	config := Config{
-		Level:  "info",
-		Format: "json",
+// Info logs an info message
+func (l *Logger) Info(msg string, args ...interface{}) {
+	if len(args) == 0 {
+		l.logger.Info(msg)
+		return
 	}
-	logger, err := NewLogger(config)
-	if err != nil {
-		// If there's an error creating the custom logger, fall back to production logger
-		logger, _ = zap.NewProduction()
-	}
-	return logger
+
+	fields := makeFields(args...)
+	l.logger.WithFields(fields).Info(msg)
 }
 
-// NewDevelopmentLogger creates a logger suitable for development
-func NewDevelopmentLogger() *zap.Logger {
-	logger, _ := zap.NewDevelopment()
-	return logger
+// Debug logs a debug message
+func (l *Logger) Debug(msg string, args ...interface{}) {
+	if len(args) == 0 {
+		l.logger.Debug(msg)
+		return
+	}
+
+	fields := makeFields(args...)
+	l.logger.WithFields(fields).Debug(msg)
 }
 
-// NewProductionLogger creates a logger suitable for production
-func NewProductionLogger() *zap.Logger {
-	logger, _ := zap.NewProduction()
-	return logger
-} 
+// Warn logs a warning message
+func (l *Logger) Warn(msg string, args ...interface{}) {
+	if len(args) == 0 {
+		l.logger.Warn(msg)
+		return
+	}
+
+	fields := makeFields(args...)
+	l.logger.WithFields(fields).Warn(msg)
+}
+
+// Error logs an error message
+func (l *Logger) Error(msg string, args ...interface{}) {
+	if len(args) == 0 {
+		l.logger.Error(msg)
+		return
+	}
+
+	fields := makeFields(args...)
+	l.logger.WithFields(fields).Error(msg)
+}
+
+// makeFields converts a list of key-value pairs to logrus fields
+func makeFields(args ...interface{}) logrus.Fields {
+	fields := logrus.Fields{}
+	for i := 0; i < len(args); i += 2 {
+		if i+1 < len(args) {
+			fields[args[i].(string)] = args[i+1]
+		}
+	}
+	return fields
+}
