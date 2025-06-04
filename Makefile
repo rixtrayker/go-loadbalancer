@@ -1,70 +1,72 @@
-# Main Makefile for Go Load Balancer
+.PHONY: build clean test run lint docker
 
-# Include all makefiles
-include make/vars.mk
-include make/build.mk
-include make/test.mk
-include make/bench.mk
-include make/lint.mk
-include make/docker.mk
-include make/clean.mk
-include make/help.mk
-include make/k6.mk
+# Build variables
+BINARY_NAME=go-lb
+BUILD_DIR=build
+CMD_DIR=cmd/go-lb
+
+# Docker variables
+DOCKER_IMAGE=go-loadbalancer
+DOCKER_TAG=latest
 
 # Default target
-.PHONY: all
-all: clean test build
+all: build
 
-# Development environment setup
-.PHONY: setup
-setup: install-tools install-deps
-	@echo "Development environment setup complete"
+# Build the application
+build:
+	@echo "Building $(BINARY_NAME)..."
+	@mkdir -p $(BUILD_DIR)
+	@go build -o $(BUILD_DIR)/$(BINARY_NAME) ./$(CMD_DIR)
 
-# Install dependencies
-.PHONY: install-deps
-install-deps:
-	@echo "Installing dependencies..."
-	go mod download
-	go mod tidy
+# Clean build artifacts
+clean:
+	@echo "Cleaning..."
+	@rm -rf $(BUILD_DIR)
 
-# Show help
-.PHONY: help
+# Run tests
+test:
+	@echo "Running tests..."
+	@go test -v ./...
+
+# Run the application
+run: build
+	@echo "Running $(BINARY_NAME)..."
+	@./$(BUILD_DIR)/$(BINARY_NAME) --config configs/config.yml
+
+# Run linting
+lint:
+	@echo "Running linter..."
+	@golangci-lint run
+
+# Build Docker image
+docker-build:
+	@echo "Building Docker image..."
+	@docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f deployments/docker/Dockerfile .
+
+# Run Docker container
+docker-run:
+	@echo "Running Docker container..."
+	@docker run -p 8080:8080 $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+# Run k6 load tests
+k6-simple:
+	@echo "Running simple k6 load test..."
+	@k6 run tools/k6/simple.js
+
+k6-stress:
+	@echo "Running stress k6 load test..."
+	@k6 run tools/k6/stress.js
+
+# Help
 help:
-	@echo "Go Load Balancer - Available targets:"
-	@echo ""
-	@echo "Environment:"
-	@echo "  setup           - Set up development environment"
-	@echo "  install-deps    - Install dependencies"
-	@echo "  install-tools   - Install development tools"
-	@echo ""
-	@echo "Build:"
-	@echo "  build           - Build for current platform"
-	@echo "  build-linux     - Build for Linux"
-	@echo "  build-darwin    - Build for Darwin"
-	@echo "  build-windows   - Build for Windows"
-	@echo ""
-	@echo "Testing:"
-	@echo "  test            - Run tests"
-	@echo "  test-coverage   - Run tests with coverage"
-	@echo "  test-race       - Run tests with race detection"
-	@echo "  bench           - Run benchmarks"
-	@echo "  bench-cpu       - Run CPU benchmarks"
-	@echo "  bench-mem       - Run memory benchmarks"
-	@echo ""
-	@echo "Code Quality:"
-	@echo "  lint            - Run linter"
-	@echo "  vet             - Run go vet"
-	@echo "  security        - Run security checks"
-	@echo "  fmt             - Format code"
-	@echo ""
-	@echo "Docker:"
-	@echo "  docker-build    - Build Docker image"
-	@echo "  docker-run      - Run Docker container"
-	@echo "  docker-push     - Push Docker image"
-	@echo ""
-	@echo "Cleanup:"
-	@echo "  clean           - Clean build artifacts"
-	@echo "  clean-all       - Clean all generated files"
-	@echo ""
-	@echo "Help:"
-	@echo "  help            - Show this help message" z
+	@echo "Available targets:"
+	@echo "  build        - Build the application"
+	@echo "  clean        - Clean build artifacts"
+	@echo "  test         - Run tests"
+	@echo "  run          - Run the application"
+	@echo "  lint         - Run linting"
+	@echo "  docker-build - Build Docker image"
+	@echo "  docker-run   - Run Docker container"
+	@echo "  k6-simple    - Run simple k6 load test"
+	@echo "  k6-stress    - Run stress k6 load test"
+	@echo "  help         - Show this help"
