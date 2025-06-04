@@ -1,0 +1,29 @@
+server:
+  address: ":8080"
+  admin_enable: true
+  admin_path: "/admin"
+  
+backend_pools:
+  - name: "web-servers"
+    algorithm: "round_robin"
+    backends:
+      - url: "http://localhost:3001"
+        weight: 1
+      - url: "http://localhost:3002"
+        weight: 2
+    health_check:
+      path: "/health"
+      interval: "30s"
+      timeout: "5s"
+
+routing_rules:
+  - match:
+      host: "example.com"
+      path: "/api/*"
+    target_pool: "web-servers"
+    policies:
+      - rate_limit: "100/minute"
+  - match:
+      path: "/*"
+    target_pool: "web-servers"
+    policies: []
