@@ -2,14 +2,12 @@ package configs
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/env"
-	"github.com/knadh/koanf/providers/file"
-	"github.com/knadh/koanf/v2"
+	"gopkg.in/yaml.v2"
 )
 
 // LoadConfig loads configuration from the specified file
@@ -23,76 +21,78 @@ func LoadConfig(path string) (*Config, error) {
 		path = filepath.Join(homeDir, path[2:])
 	}
 
-	// Initialize koanf
-	k := koanf.New(".")
-
 	// Load default configuration
-	defaultConfig := DefaultConfig()
-	if err := k.Load(koanf.Provider(defaultConfig, ".", koanf.UnmarshalConf{}), nil); err != nil {
-		return nil, fmt.Errorf("failed to load default config: %w", err)
+	config := DefaultConfig()
+
+	// Read config file
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Load from YAML file
-	if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
-		return nil, fmt.Errorf("failed to load config file: %w", err)
+	// Parse YAML
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// Load from environment variables
-	if err := k.Load(env.Provider("LB_", ".", func(s string) string {
-		return strings.Replace(strings.ToLower(
-			strings.TrimPrefix(s, "LB_")), "_", ".", -1)
-	}), nil); err != nil {
-		return nil, fmt.Errorf("failed to load environment variables: %w", err)
-	}
-
-	// Unmarshal into Config struct
-	var config Config
-	if err := k.Unmarshal("", &config); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
+	// Apply environment variables
+	applyEnvironmentVariables(config)
 
 	// Validate configuration
-	if err := validateConfig(&config); err != nil {
+	if err := validateConfig(config); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	return &config, nil
+	return config, nil
 }
 
 // DefaultConfig returns the default configuration
-func DefaultConfig() map[string]interface{} {
-	return map[string]interface{}{
-		"server": map[string]interface{}{
-			"address":       ":8080",
-			"read_timeout":  30,
-			"write_timeout": 30,
-			"idle_timeout":  60,
-			"cors_enabled":  false,
+func DefaultConfig() *Config {
+	return &Config{
+		Server: ServerConfig{
+			Address:      ":8080",
+			ReadTimeout:  30,
+			WriteTimeout: 30,
+			IdleTimeout:  60,
+			CorsEnabled:  false,
 		},
-		"monitoring": map[string]interface{}{
-			"prometheus": map[string]interface{}{
-				"enabled": false,
-				"path":    "/metrics",
-				"port":    9090,
+		Monitoring: MonitoringConfig{
+			Prometheus: PrometheusConfig{
+				Enabled: false,
+				Path:    "/metrics",
+				Port:    9090,
 			},
-			"tracing": map[string]interface{}{
-				"enabled":         false,
-				"service_name":    "go-loadbalancer",
-				"service_version": "1.0.0",
-				"environment":     "development",
-				"endpoint":        "localhost:4317",
-				"sampling_rate":   1.0,
-				"protocol":        "grpc",
-				"secure":          false,
+			Tracing: TracingConfig{
+				Enabled:        false,
+				ServiceName:    "go-loadbalancer",
+				ServiceVersion: "1.0.0",
+				Environment:    "development",
+				Endpoint:       "localhost:4317",
+				SamplingRate:   1.0,
+				Protocol:       "grpc",
+				Secure:         false,
 			},
-			"logging": map[string]interface{}{
-				"level":           "info",
-				"format":          "json",
-				"output":          "stdout",
-				"include_trace_id": true,
-				"include_span_id":  true,
+			Logging: LoggingConfig{
+				Level:          "info",
+				Format:         "json",
+				Output:         "stdout",
+				IncludeTraceID: true,
+				IncludeSpanID:  true,
 			},
 		},
+	}
+}
+
+// applyEnvironmentVariables applies environment variables to the configuration
+func applyEnvironmentVariables(config *Config) {
+	// Server configuration
+	if addr := os.Getenv("LB_SERVER_ADDRESS"); addr != "" {
+		config.Server.Address = addr
+	}
+
+	// Logging configuration
+	if level := os.Getenv("LB_LOG_LEVEL"); level != "" {
+		config.Monitoring.Logging.Level = level
 	}
 }
 
