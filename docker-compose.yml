@@ -73,7 +73,7 @@ services:
       - K6_OUT=influxdb=http://influxdb:8086/k6
 
   influxdb:
-    image: influxdb:1.8
+    image: influxdb:latest
     container_name: influxdb
     ports:
       - "8086:8086"
