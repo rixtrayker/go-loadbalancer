@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/rixtrayker/go-loadbalancer/internal/app"
-	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
+	"github.com/rixtrayker/go-loadbalancer/internal/logging"
 )
 
 func main() {

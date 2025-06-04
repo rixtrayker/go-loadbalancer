@@ -10,7 +10,10 @@ import (
 
 	"github.com/rixtrayker/go-loadbalancer/configs"
 	httpHandler "github.com/rixtrayker/go-loadbalancer/internal/handler/http"
-	"github.com/rixtrayker/go-loadbalancer/pkg/logging"
+	"github.com/rixtrayker/go-loadbalancer/internal/logging"
+	"github.com/rixtrayker/go-loadbalancer/internal/middleware"
+	"github.com/rixtrayker/go-loadbalancer/internal/monitoring"
+	"github.com/rixtrayker/go-loadbalancer/internal/tracing"
 	"github.com/rixtrayker/go-loadbalancer/pkg/metrics"
 )
 
@@ -20,6 +23,7 @@ type App struct {
 	httpServer *http.Server
 	logger     *logging.Logger
 	metrics    *metrics.Metrics
+	tracer     *tracing.Tracer
 }
 
 // New creates a new application instance
@@ -30,19 +34,46 @@ func New(configPath string) (*App, error) {
 		return nil, err
 	}
 
-	// Initialize components
+	// Initialize logger with monitoring config
 	logger := logging.NewLogger()
+	if err := logger.Configure(config.Monitoring.Logging); err != nil {
+		return nil, err
+	}
+
+	// Initialize metrics collector
 	metricsCollector := metrics.NewMetrics()
+	if config.Monitoring.Prometheus.Enabled {
+		if err := monitoring.InitializePrometheus(config.Monitoring.Prometheus); err != nil {
+			return nil, err
+		}
+	}
+
+	// Initialize tracer if enabled
+	var tracer *tracing.Tracer
+	if config.Monitoring.Tracing.Enabled {
+		tracer, err = tracing.NewTracer(config.Monitoring.Tracing)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	// Create the application
 	app := &App{
 		config:  config,
 		logger:  logger,
 		metrics: metricsCollector,
+		tracer:  tracer,
 	}
 
-	// Setup HTTP server
-	handler := httpHandler.NewHandler(config, logger, metricsCollector)
+	// Setup HTTP server with monitoring middleware
+	var handler http.Handler = httpHandler.NewHandler(config, logger, metricsCollector)
+	if config.Monitoring.Prometheus.Enabled {
+		handler = middleware.MonitoringMiddleware(handler)
+	}
+	if config.Monitoring.Tracing.Enabled {
+		handler = middleware.TracingMiddleware(handler)
+	}
+
 	app.httpServer = &http.Server{
 		Addr:    config.Server.Address,
 		Handler: handler,
