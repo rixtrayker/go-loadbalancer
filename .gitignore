@@ -5,3 +5,6 @@
 /config/config.prod.yaml
 /config/config.dev.yaml
 /config/config.test.yaml
+/dist
+/build
+/vendor
